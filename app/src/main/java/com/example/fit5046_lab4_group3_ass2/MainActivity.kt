@@ -42,9 +42,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FIT5046Lab4Group3ass2Theme {
-                //ElectricityScaffold()
+                ElectricityScaffold()
                 //Home()
-                ProfileSetup()
+                //ProfileSetup()
             }
         }
     }
@@ -102,7 +102,7 @@ fun ElectricityScaffold() {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Electricity") },
+                title = { Text("Home") },
                 navigationIcon = {
                     Box(
                         modifier = Modifier
@@ -131,7 +131,7 @@ fun ElectricityScaffold() {
             ) {
                 navItems.forEachIndexed { index, item ->
                     NavigationBarItem(
-                        selected = index == 1, // Appliances selected (UI-only)
+                        selected = index == 0, // Appliances selected (UI-only)
                         onClick = { /* no-op */ },
                         icon = { Icon(item.icon, contentDescription = item.label) },
                         label = { Text(item.label) }
@@ -139,25 +139,21 @@ fun ElectricityScaffold() {
                 }
             }
         },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { /* no-op */ }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add")
-            }
-        }
     ) { inner ->
         Surface(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            ElectricityScreen(
+            /*ElectricityScreen(
                 usageKwh = "8.4 kWh",
                 costEstimate = "$2.52 estimated cost",
                 co2 = "CO₂: 4.2kg equivalent",
                 changePercent = "-12%",
                 appliances = demoAppliances,
                 suggestions = demoSuggestions
-            )
+            )*/
+            Home()
         }
     }
 }
@@ -474,68 +470,78 @@ fun SmallText(modifier: Modifier = Modifier, text: String) {
 
 @Composable
 fun Home(modifier: Modifier = Modifier) {
-    Column(
+    LazyColumn(
         modifier = Modifier
-            .padding(10.dp)
-            .fillMaxWidth()
+            .fillMaxSize(),
+            //.padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 96.dp)
     ) {
-        Spacer(modifier = Modifier.height(36.dp))
-        Text(
-            text = "Good morning!",
-            modifier = Modifier
-                .fillMaxWidth(),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleMedium
-        )
-        Text(
-            text = "Lets track your eco impact today",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 10.dp),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodyMedium
-        )
-        GeneralCard(title = "EcoPoints", mainText = "2,450", smallText = "🔥 7-day streak")
-        GeneralCard(title = "Electricity", mainText = "8.4 kWh", smallText = "Today's usage", progress = 0.8f)
-        GeneralCard(title = "Plastic Saved", mainText = "2.1 kg", smallText = "This week = 7 bottles", progress = 0.5f)
+        item {
+            Column(
+                modifier = Modifier
+                    .padding(10.dp)
+                    .fillMaxWidth()
+            ) {
+                //Spacer(modifier = Modifier.height(36.dp))
+                Text(
+                    text = "Good morning!",
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = "Lets track your eco impact today",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                GeneralCard(title = "EcoPoints", mainText = "2,450", smallText = "🔥 7-day streak")
+                GeneralCard(title = "Electricity", mainText = "8.4 kWh", smallText = "Today's usage", progress = 0.8f)
+                GeneralCard(title = "Plastic Saved", mainText = "2.1 kg", smallText = "This week = 7 bottles", progress = 0.5f)
 
-        BoldText(text = "Quick Actions")
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-        ) {
-            Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Add Appliance"
-                )
-            }
-            Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Log Purchase"
-                )
+                BoldText(text = "Quick Actions")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                ) {
+                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Add Appliance"
+                        )
+                    }
+                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Log Purchase"
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                ) {
+                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "View Tips"
+                        )
+                    }
+                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "View Stats"
+                        )
+                    }
+                }
+                BoldText(text = "Recent Activity")
+                GeneralCard(title = "Plastic bottle avoided", mainText = "2 hours ago", smallText = "+50 pts")
+                GeneralCard(title = "Washing machine usage logged", mainText = "5 hours ago", smallText = "+25 pts")
+                GeneralCard(title = "Today's Eco Tip", mainText = "", smallText = "Unplug devices when not in use")
+
             }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-        ) {
-            Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "View Tips"
-                )
-            }
-            Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "View Stats"
-                )
-            }
-        }
-        BoldText(text = "Recent Activity")
-        GeneralCard(title = "Plastic bottle avoided", mainText = "2 hours ago", smallText = "+50 pts")
-        GeneralCard(title = "Washing machine usage logged", mainText = "5 hours ago", smallText = "+25 pts")
-        GeneralCard(title = "Today's Eco Tip", mainText = "", smallText = "Unplug devices when not in use")
-
     }
+
 }
 
 @Composable
