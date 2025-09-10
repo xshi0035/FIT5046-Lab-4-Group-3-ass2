@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FIT5046Lab4Group3ass2Theme {
-                LoginScaffold()
+                SignUpScaffold()
             }
         }
     }
@@ -43,12 +43,13 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScaffold() {
+fun SignUpScaffold() {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("EcoTrack") },
                 navigationIcon = {
+                    // Small circular logo (same as other pages)
                     Box(
                         modifier = Modifier
                             .padding(start = 8.dp)
@@ -77,7 +78,7 @@ fun LoginScaffold() {
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            LoginScreen()
+            SignUpScreen()
         }
     }
 }
@@ -85,7 +86,7 @@ fun LoginScaffold() {
 /* --------------------------------- SCREEN ---------------------------------- */
 
 @Composable
-fun LoginScreen() {
+fun SignUpScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -114,13 +115,13 @@ fun LoginScreen() {
         Spacer(Modifier.height(12.dp))
 
         Text(
-            "EcoTrack",
+            "Create Account",
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
         Text(
-            "Track your eco-friendly journey",
+            "Enter your details to get started",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier
@@ -130,19 +131,20 @@ fun LoginScreen() {
 
         Spacer(Modifier.height(16.dp))
 
-        SegmentedTabs()
+        // Segmented tabs – "Sign Up" selected (UI-only)
+        SegmentedTabsSignUp()
 
         Spacer(Modifier.height(20.dp))
 
         // Email
-        Text("Email", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Text("Email Address", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
             value = "",
             onValueChange = {},
-            readOnly = true,
+            readOnly = true, // UI-only
             singleLine = true,
-            placeholder = { Text("Enter your email") },
+            placeholder = { Text("example@domain.com") },
             trailingIcon = { Icon(Icons.Filled.Email, contentDescription = "Email") },
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
@@ -150,30 +152,54 @@ fun LoginScreen() {
 
         Spacer(Modifier.height(16.dp))
 
-        // Password (eye emoji instead of missing Visibility icon)
+        // Password
         Text("Password", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
             value = "",
             onValueChange = {},
-            readOnly = true,
+            readOnly = true, // UI-only
             singleLine = true,
-            placeholder = { Text("Enter your password") },
+            placeholder = { Text("Create a password") },
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         )
 
+        // Strength bar + label (static UI)
         Spacer(Modifier.height(8.dp))
-
-        Row(Modifier.fillMaxWidth()) {
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { /* no-op */ }) {
-                Text("Forgot Password?")
-            }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            LinearProgressIndicator(
+                progress = { 0.25f }, // static "Weak" look
+                modifier = Modifier
+                    .weight(1f)
+                    .height(6.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Weak", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
 
+        // Password tips (UI-only)
         Spacer(Modifier.height(8.dp))
+        PasswordTip("At least 8 characters")
+        PasswordTip("Uppercase and lowercase letters")
+        PasswordTip("At least one number")
+        PasswordTip("At least one special symbol")
 
+        Spacer(Modifier.height(16.dp))
+
+        // ToS checkbox line (UI-only)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = false, onCheckedChange = null, enabled = false)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "I agree to the Terms of Service and Privacy Policy",
+                style = MaterialTheme.typography.bodySmall, // small, per your preference
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Create Account button
         Button(
             onClick = { /* no-op */ },
             shape = RoundedCornerShape(16.dp),
@@ -181,65 +207,21 @@ fun LoginScreen() {
                 .fillMaxWidth()
                 .height(52.dp)
         ) {
-            Text("Login", fontWeight = FontWeight.Medium)
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // New M3 HorizontalDivider inside a Row
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Box(Modifier.weight(1f)) { HorizontalDivider() }
-            Text(
-                "  or continue with  ",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Box(Modifier.weight(1f)) { HorizontalDivider() }
+            Text("Create Account", fontWeight = FontWeight.Medium)
         }
 
         Spacer(Modifier.height(16.dp))
 
-        OutlinedButton(
-            onClick = { /* no-op */ },
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) { Text("G", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
-
-            Spacer(Modifier.width(12.dp))
-            Text("Continue with Google")
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Text(
-            text = "By continuing, you agree to our Terms of Service and Privacy Policy",
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-        )
-
-        Spacer(Modifier.height(8.dp))
-
+        // Link back to login
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
             horizontalArrangement = Arrangement.Center
         ) {
-            Text("New to EcoTrack? ")
+            Text("Already have an account? ")
             Text(
-                text = "Create an account",
+                text = "Sign in",
                 color = MaterialTheme.colorScheme.primary,
                 textDecoration = TextDecoration.Underline
             )
@@ -250,7 +232,7 @@ fun LoginScreen() {
 /* ----------------------------- COMPONENTS ---------------------------------- */
 
 @Composable
-private fun SegmentedTabs() {
+private fun SegmentedTabsSignUp() {
     val container = MaterialTheme.colorScheme.surfaceVariant
     val selected = MaterialTheme.colorScheme.surface
 
@@ -261,18 +243,7 @@ private fun SegmentedTabs() {
             .padding(4.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                color = selected,
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Text("Login", fontWeight = FontWeight.Medium)
-                }
-            }
-            Spacer(Modifier.width(6.dp))
+            // Login (unselected)
             Surface(
                 color = container,
                 shape = RoundedCornerShape(10.dp),
@@ -282,13 +253,34 @@ private fun SegmentedTabs() {
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     Text(
-                        "Sign Up",
+                        "Login",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
+            Spacer(Modifier.width(6.dp))
+            // Sign Up (selected)
+            Surface(
+                color = selected,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Text("Sign Up", fontWeight = FontWeight.Medium)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun PasswordTip(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("• ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
     }
 }
 
@@ -296,8 +288,8 @@ private fun SegmentedTabs() {
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
-fun LoginPreview() {
+fun SignUpPreview() {
     FIT5046Lab4Group3ass2Theme {
-        LoginScaffold()
+        SignUpScaffold()
     }
 }
