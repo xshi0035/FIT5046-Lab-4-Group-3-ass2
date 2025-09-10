@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,8 +68,7 @@ private val demoAppliances = listOf(
 private val demoSuggestions = listOf(
     Suggestion(
         title = "Peak Hour Alert",
-        body = "High load expected at 7pm today. Consider running your washing machine earlier to save $0.15.",
-        leadingEmoji = "💡"
+        body = "High load expected at 7pm today. Consider running your washing machine earlier to save $0.15."
     ),
     Suggestion(
         title = "Eco Tip",
@@ -79,14 +79,14 @@ private val demoSuggestions = listOf(
 
 /* ------------------------------- MAIN SCAFFOLD ------------------------------- */
 
-@OptIn(ExperimentalMaterial3Api::class) // fix experimental top app bar warning
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ElectricityScaffold() {
-    // Use only default system icons (no extra deps)
+    // System icons only (placeholders where needed)
     val navItems = listOf(
         NavItem("Home", Icons.Filled.Home),
-        NavItem("Appliances", Icons.Filled.Add), // placeholder
-        NavItem("Plastic", Icons.Filled.Delete),    // placeholder
+        NavItem("Appliances", Icons.Filled.Add),   // placeholder icon
+        NavItem("Plastic", Icons.Filled.Delete),   // placeholder icon
         NavItem("Rewards", Icons.Filled.Star),
         NavItem("Profile", Icons.Filled.AccountCircle),
     )
@@ -118,11 +118,13 @@ fun ElectricityScaffold() {
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
                 navItems.forEachIndexed { index, item ->
                     NavigationBarItem(
-                        selected = index == 1, // Appliances selected (UI only)
-                        onClick = { /* no-op (UI prototype) */ },
+                        selected = index == 1, // Appliances selected (UI-only)
+                        onClick = { /* no-op */ },
                         icon = { Icon(item.icon, contentDescription = item.label) },
                         label = { Text(item.label) }
                     )
@@ -171,26 +173,39 @@ fun ElectricityScreen(
     ) {
         item { Spacer(Modifier.height(8.dp)) }
 
-        // Today's Usage card
+        // Today's Usage card (colorful)
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Today's Usage", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Today's Usage",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             usageKwh,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
                             modifier = Modifier.weight(1f)
                         )
                         ChangePill(changePercent)
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text(costEstimate, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(co2, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        costEstimate,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                    )
+                    Text(
+                        co2,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                    )
                 }
             }
         }
@@ -238,7 +253,6 @@ fun ElectricityScreen(
                     .padding(top = 8.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Weight applied here (RowScope) and ActionCard has modifier first
                 ActionCard(modifier = Modifier.weight(1f), label = "Usage Graph")
                 ActionCard(modifier = Modifier.weight(1f), label = "Cost Calculator")
             }
@@ -250,13 +264,19 @@ fun ElectricityScreen(
 
 @Composable
 private fun ChangePill(text: String) {
+    val isDown = text.trim().startsWith("-")
+    val bg = if (isDown) MaterialTheme.colorScheme.tertiaryContainer
+    else MaterialTheme.colorScheme.errorContainer
+    val fg = if (isDown) MaterialTheme.colorScheme.onTertiaryContainer
+    else MaterialTheme.colorScheme.onErrorContainer
+
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(bg)
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
-        Text(text, fontSize = 12.sp)
+        Text(text, fontSize = 12.sp, color = fg)
     }
 }
 
@@ -264,16 +284,19 @@ private fun ChangePill(text: String) {
 private fun ApplianceCard(appliance: Appliance) {
     Card(
         shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Simple emoji block to match your Figma quickly
+                // Tinted icon tile
                 Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .background(MaterialTheme.colorScheme.secondaryContainer),
                     contentAlignment = Alignment.Center
                 ) { Text(appliance.iconEmoji, fontSize = 20.sp) }
 
@@ -291,7 +314,11 @@ private fun ApplianceCard(appliance: Appliance) {
                 }
 
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(appliance.costPerDay, fontWeight = FontWeight.Medium)
+                    Text(
+                        appliance.costPerDay,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     Text(appliance.kwh, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
             }
@@ -315,24 +342,34 @@ private fun ApplianceCard(appliance: Appliance) {
 
 @Composable
 private fun SuggestionCard(suggestion: Suggestion) {
-    Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
             Box(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(MaterialTheme.colorScheme.surface),
                 contentAlignment = Alignment.Center
             ) { Text(suggestion.leadingEmoji) }
 
             Spacer(Modifier.width(12.dp))
 
             Column {
-                Text(suggestion.title, fontWeight = FontWeight.SemiBold)
+                Text(
+                    suggestion.title,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     suggestion.body,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f),
                     lineHeight = 18.sp
                 )
             }
@@ -340,7 +377,6 @@ private fun SuggestionCard(suggestion: Suggestion) {
     }
 }
 
-// NOTE: modifier is the first optional parameter (avoids the lint warning)
 @Composable
 private fun ActionCard(
     modifier: Modifier = Modifier,
@@ -350,12 +386,18 @@ private fun ActionCard(
         shape = RoundedCornerShape(16.dp),
         modifier = modifier.height(72.dp)
     ) {
-        Row(
-            Modifier
+        Box(
+            modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
         ) {
             Text(label, fontWeight = FontWeight.Medium)
         }
