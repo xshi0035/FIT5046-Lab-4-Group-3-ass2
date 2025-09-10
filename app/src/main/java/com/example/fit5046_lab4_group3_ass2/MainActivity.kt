@@ -1,10 +1,13 @@
 package com.example.fit5046_lab4_group3_ass2
 
+import android.R.attr.checked
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,13 +23,16 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,6 +41,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import java.text.SimpleDateFormat
+import java.time.Instant
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,7 +113,7 @@ fun ElectricityScaffold() {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Home") },
+                title = { Text("Set up Profile") },
                 navigationIcon = {
                     Box(
                         modifier = Modifier
@@ -131,7 +142,7 @@ fun ElectricityScaffold() {
             ) {
                 navItems.forEachIndexed { index, item ->
                     NavigationBarItem(
-                        selected = index == 0, // Appliances selected (UI-only)
+                        selected = index == 4, // Appliances selected (UI-only)
                         onClick = { /* no-op */ },
                         icon = { Icon(item.icon, contentDescription = item.label) },
                         label = { Text(item.label) }
@@ -153,7 +164,8 @@ fun ElectricityScaffold() {
                 appliances = demoAppliances,
                 suggestions = demoSuggestions
             )*/
-            Home()
+            //Home()
+            ProfileSetup()
         }
     }
 }
@@ -323,7 +335,11 @@ private fun ApplianceCard(appliance: Appliance) {
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Text(appliance.kwh, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(
+                        appliance.kwh,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
                 }
             }
 
@@ -421,7 +437,13 @@ fun ElectricityPreview() {
 }
 
 @Composable
-fun GeneralCard(modifier: Modifier = Modifier, title:String, mainText:String, smallText:String, progress:Float = 0f) {
+fun GeneralCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    mainText: String,
+    smallText: String,
+    progress: Float = 0f
+) {
     Card(modifier = Modifier.padding(bottom = 10.dp)) {
         Spacer(modifier = Modifier.height(10.dp))
         if (title != "")
@@ -473,7 +495,7 @@ fun Home(modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize(),
-            //.padding(horizontal = 16.dp),
+        //.padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 96.dp)
     ) {
         item {
@@ -499,8 +521,18 @@ fun Home(modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodyMedium
                 )
                 GeneralCard(title = "EcoPoints", mainText = "2,450", smallText = "🔥 7-day streak")
-                GeneralCard(title = "Electricity", mainText = "8.4 kWh", smallText = "Today's usage", progress = 0.8f)
-                GeneralCard(title = "Plastic Saved", mainText = "2.1 kg", smallText = "This week = 7 bottles", progress = 0.5f)
+                GeneralCard(
+                    title = "Electricity",
+                    mainText = "8.4 kWh",
+                    smallText = "Today's usage",
+                    progress = 0.8f
+                )
+                GeneralCard(
+                    title = "Plastic Saved",
+                    mainText = "2.1 kg",
+                    smallText = "This week = 7 bottles",
+                    progress = 0.5f
+                )
 
                 BoldText(text = "Quick Actions")
                 Row(
@@ -534,9 +566,21 @@ fun Home(modifier: Modifier = Modifier) {
                     }
                 }
                 BoldText(text = "Recent Activity")
-                GeneralCard(title = "Plastic bottle avoided", mainText = "2 hours ago", smallText = "+50 pts")
-                GeneralCard(title = "Washing machine usage logged", mainText = "5 hours ago", smallText = "+25 pts")
-                GeneralCard(title = "Today's Eco Tip", mainText = "", smallText = "Unplug devices when not in use")
+                GeneralCard(
+                    title = "Plastic bottle avoided",
+                    mainText = "2 hours ago",
+                    smallText = "+50 pts"
+                )
+                GeneralCard(
+                    title = "Washing machine usage logged",
+                    mainText = "5 hours ago",
+                    smallText = "+25 pts"
+                )
+                GeneralCard(
+                    title = "Today's Eco Tip",
+                    mainText = "",
+                    smallText = "Unplug devices when not in use"
+                )
 
             }
         }
@@ -546,69 +590,177 @@ fun Home(modifier: Modifier = Modifier) {
 
 @Composable
 fun ProfileSetup(modifier: Modifier = Modifier) {
-    Column(
+    LazyColumn(
         modifier = Modifier
-            .padding(10.dp)
-            .fillMaxWidth()
+            .fillMaxSize(),
+        //.padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 96.dp)
     ) {
-        Spacer(modifier = Modifier.height(36.dp))
-        Text(
-            text = "Set Up Your Profile",
-            modifier = Modifier
-                .fillMaxWidth(),
-            style = MaterialTheme.typography.titleMedium
-        )
-        Text(
-            text = "Step 1",
-            modifier = Modifier
-                .fillMaxWidth(),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        Card {
-            Spacer(modifier = Modifier.height(10.dp))
-            BoldText(text = "Household Information")
-            SmallText(text="How many people live in your household?")
-            OutlinedTextField(
-                value = "",
-                label = {SmallText(text="Enter number of people")},
-                onValueChange = {},
-                modifier = Modifier.padding(horizontal = 10.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            SmallText(text="What type of home do you live in?")
+        item {
+            Column(
+                modifier = Modifier
+                    .padding(10.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "Step 1",
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Card {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    BoldText(text = "User Information")
+                    SmallText(text = "Enter your name:")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Name") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
 
-            val radioOptions = listOf("Apartment", "Detached House", "Townhouse", "Other")
-            val (selectedOption, onOptionSelected) = remember { mutableStateOf(radioOptions[0]) }
-            // Note that Modifier.selectableGroup() is essential to ensure correct accessibility behavior
-            Column(modifier.selectableGroup()) {
-                radioOptions.forEach { text ->
+                    SmallText(text = "Enter your email:")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Email") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SmallText(text = "Enter your date of birth:")
+                    DisplayDatePicker()
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Card {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    BoldText(text = "Household Information")
+                    SmallText(text = "How many people live in your household?")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Enter number of people") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SmallText(text = "What type of home do you live in?")
+
+                    val radioOptions = listOf("Apartment", "Detached House", "Townhouse", "Other")
+                    val (selectedOption, onOptionSelected) = remember { mutableStateOf(radioOptions[0]) }
+                    // Note that Modifier.selectableGroup() is essential to ensure correct accessibility behavior
+                    Column(modifier.selectableGroup()) {
+                        radioOptions.forEach { text ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .selectable(
+                                        selected = (text == selectedOption),
+                                        onClick = { onOptionSelected(text) },
+                                        role = Role.RadioButton
+                                    )
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = (text == selectedOption),
+                                    onClick = null // null recommended for accessibility with screen readers
+                                )
+                                Text(
+                                    text = text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 16.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SmallText(text = "Which of the following do you use regularly?")
+
+                    var checked by remember { mutableStateOf(true) }
                     Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .selectable(
-                                selected = (text == selectedOption),
-                                onClick = { onOptionSelected(text) },
-                                role = Role.RadioButton
-                            )
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(
-                            selected = (text == selectedOption),
-                            onClick = null // null recommended for accessibility with screen readers
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = { checked = it }
                         )
                         Text(
-                            text = text,
+                            "Refrigerator",
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(start = 16.dp)
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
         }
+    }
+}
+
+@RequiresApi(0)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DisplayDatePicker() {
+    val calendar = Calendar.getInstance()
+    var birthday by remember { mutableStateOf("") }
+    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = Instant.now().toEpochMilli()
+    )
+    var showDatePicker by remember {
+        mutableStateOf(false)
+    }
+    var selectedDate by remember {
+        mutableStateOf(calendar.timeInMillis)
+    }
+    Column(modifier = Modifier.padding(10.dp)) {
+        TextField(
+            value = birthday,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Birthday") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showDatePicker = true },
+            trailingIcon = {
+                Icon(
+                    painter = painterResource(id = R.drawable.calendar_icon),
+                    contentDescription = "Select Date",
+                    modifier = Modifier
+                        .clickable { showDatePicker = true }
+                        .size(40.dp)
+                )
+            }
+        )
+        if (showDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = {
+                    showDatePicker = false
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDatePicker = false
+                        selectedDate = datePickerState.selectedDateMillis!!
+                        birthday = "DoB: ${formatter.format(Date(selectedDate))}"
+                    }) {
+                        Text(text = "OK")
+                    }
+                },
+                dismissButton = {TextButton(onClick = {
+                    showDatePicker = false
+                }) {
+                    Text(text = "Cancel")
+                }
+                }
+            ) //end of dialog
+            { //still column scope
+                DatePicker(
+                    state = datePickerState
+                )
+            }
+        }// end of if
     }
 }
