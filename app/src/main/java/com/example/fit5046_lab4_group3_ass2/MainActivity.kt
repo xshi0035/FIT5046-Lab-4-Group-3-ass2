@@ -161,46 +161,127 @@ fun ProfileSetup(modifier: Modifier = Modifier) {
                         .fillMaxWidth(),
                     style = MaterialTheme.typography.bodyMedium
                 )
+                Text(
+                    text = "* means the field is required to be filled in.",
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 Spacer(modifier = Modifier.height(10.dp))
                 Card {
                     Spacer(modifier = Modifier.height(10.dp))
                     BoldText(text = "User Information")
-                    SmallText(text = "Enter your name:")
                     OutlinedTextField(
                         value = "",
-                        label = { SmallText(text = "Name") },
+                        label = { SmallText(text = "Name *") },
                         onValueChange = {},
-                        modifier = Modifier.padding(horizontal = 10.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-
-                    SmallText(text = "Enter your email:")
                     OutlinedTextField(
                         value = "",
-                        label = { SmallText(text = "Email") },
+                        label = { SmallText(text = "Email *") },
                         onValueChange = {},
-                        modifier = Modifier.padding(horizontal = 10.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    SmallText(text = "Enter your date of birth:")
                     DisplayDatePicker()
                     Spacer(modifier = Modifier.height(10.dp))
                 }
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 Card {
                     Spacer(modifier = Modifier.height(10.dp))
                     BoldText(text = "Household Information")
                     SmallText(text = "How many people live in your household?")
                     OutlinedTextField(
                         value = "",
-                        label = { SmallText(text = "Enter number of people") },
+                        label = { SmallText(text = "Number of people") },
                         onValueChange = {},
-                        modifier = Modifier.padding(horizontal = 10.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-                    SmallText(text = "What type of home do you live in?")
+                    HorizontalDivider(thickness = 2.dp)
+                    Spacer(modifier = Modifier.height(10.dp))
 
+                    SmallText(text = "Which type of home do you live in?")
                     val radioOptions = listOf("Apartment", "Detached House", "Townhouse", "Other")
+                    val (selectedOption, onOptionSelected) = remember { mutableStateOf(radioOptions[0]) }
+                    // Note that Modifier.selectableGroup() is essential to ensure correct accessibility behavior
+                    Column(modifier.selectableGroup()) {
+                        radioOptions.forEach { text ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .selectable(
+                                        selected = (text == selectedOption),
+                                        onClick = { onOptionSelected(text) },
+                                        role = Role.RadioButton
+                                    )
+                                    .padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = (text == selectedOption),
+                                    onClick = null // null recommended for accessibility with screen readers
+                                )
+                                Text(
+                                    text = text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 16.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    HorizontalDivider(thickness = 2.dp)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    SmallText(text = "Which of the following appliances do you use regularly?")
+                    Row {
+                        Column {
+                            CheckboxItem("Refrigerator")
+                            CheckboxItem("Air Conditioner")
+                            CheckboxItem("Television")
+                            CheckboxItem("Microwave")
+                        }
+                        Column {
+                            CheckboxItem("Washing Machine")
+                            CheckboxItem("Heater")
+                            CheckboxItem("Computer")
+                            CheckboxItem("Other")
+                        }
+
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+                Card {
+                    BoldText(text = "Location and Utility Information")
+                    SmallText(text = "Select your state:")
+                    StateMenu()
+                    SmallText(text = "Electricity Provider (e.g. AGL, Origin):")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Electricity Provider") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+                Card {
+                    BoldText(text = "Eco Preferences")
+                    SmallText(text = "Notification Preferences")
+                    Switch("Energy Tips")
+                    Switch("Weekly Progress Summary")
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    HorizontalDivider(thickness = 2.dp)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    SmallText(text = "What is your preferred motivation style?")
+                    val radioOptions =
+                        listOf("Financial Savings", "Environmental Impact", "Balanced")
                     val (selectedOption, onOptionSelected) = remember { mutableStateOf(radioOptions[0]) }
                     // Note that Modifier.selectableGroup() is essential to ensure correct accessibility behavior
                     Column(modifier.selectableGroup()) {
@@ -229,45 +310,60 @@ fun ProfileSetup(modifier: Modifier = Modifier) {
                             }
                         }
                     }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+                Card {
+                    BoldText(text = "Optional Personalisation")
+                    SmallText(text = "Name for Dashboard:")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Dashboard Name") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
+                    )
+                    SmallText(text = "This name will be used in various parts of the app, such as motivational messages")
                     Spacer(modifier = Modifier.height(10.dp))
-                    SmallText(text = "Which of the following do you use regularly?")
-                    Row {
-                        Column {
-                            CheckboxItem("Refrigerator")
-                            CheckboxItem("Air Conditioner")
-                            CheckboxItem("Television")
-                            CheckboxItem("Microwave")
+                    SmallText(text = "Set Profile Avatar:")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth().padding(horizontal = 10.dp)
+                    ) {
+                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)) {
+                            Text(text = "\uD83C\uDF33")
                         }
-                        Column {
-                            CheckboxItem("Washing Machine")
-                            CheckboxItem("Heater")
-                            CheckboxItem("Computer")
-                            CheckboxItem("Other")
+                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)) {
+                            Text(text = "⚡")
                         }
-
+                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)) {
+                            Text(text = "\uD83D\uDCA7")
+                        }
+                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)) {
+                            Text(text = "\uD83C\uDF3F")
+                        }
+                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)) {
+                            Text(text = "\uD83C\uDF31")
+                        }
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Card {
-                    BoldText(text="Location and Utility Information")
-                    SmallText(text = "Select your state:")
-                    StateMenu()
-                    SmallText(text = "Electricity Provider (e.g. AGL, Origin):")
-                    OutlinedTextField(
-                        value = "",
-                        label = { SmallText(text = "Electricity Provider") },
-                        onValueChange = {},
-                        modifier = Modifier.padding(horizontal = 10.dp)
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                Card {
-                    BoldText(text="Eco Preferences")
-                    SmallText(text = "Notification Preferences")
-                    Switch("Energy Tips")
-                    Switch("Weekly Progress Summary")
+                Spacer(modifier = Modifier.height(30.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                ) {
+                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        contentPadding = PaddingValues(5.dp)) {
+                        Text(text = "Skip for Now")
+                    }
+                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        contentPadding = PaddingValues(5.dp)) {
+                        Text(text = "Save & Continue")
+                    }
                 }
             }
         }
@@ -293,11 +389,11 @@ fun CheckboxItem(name: String) {
 
 @Composable
 fun Switch(name: String) {
-    Row (
+    Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
-    ){
+    ) {
         SmallText(text = name)
         var checked by remember { mutableStateOf(true) }
 
@@ -328,11 +424,11 @@ fun DisplayDatePicker() {
         mutableStateOf(calendar.timeInMillis)
     }
     Column(modifier = Modifier.padding(10.dp)) {
-        TextField(
+        OutlinedTextField(
             value = birthday,
             onValueChange = {},
             readOnly = true,
-            label = { Text("Birthday") },
+            label = { SmallText(text = "Date of Birth") },
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { showDatePicker = true },
@@ -393,7 +489,7 @@ fun StateMenu() {
             modifier = Modifier.padding(10.dp),
             onExpandedChange = { isExpanded = it },
         ) {
-            TextField(
+            OutlinedTextField(
                 modifier = Modifier
                     .menuAnchor()
                     .fillMaxWidth()
@@ -403,7 +499,7 @@ fun StateMenu() {
                 readOnly = true,
                 value = selectedState.value,
                 onValueChange = {},
-                label = { Text("State") },
+                label = { SmallText(text = "State") },
 //manages the arrow icon up and down
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded)
@@ -416,7 +512,7 @@ fun StateMenu() {
             {
                 states.forEach { selectionOption ->
                     DropdownMenuItem(
-                        text = { Text(selectionOption) },
+                        text = { SmallText(text = selectionOption) },
                         onClick = {
                             selectedState.value = selectionOption
                             isExpanded = false
