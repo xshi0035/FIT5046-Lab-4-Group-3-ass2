@@ -10,11 +10,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
@@ -32,15 +30,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -75,7 +67,7 @@ fun ScreenScaffold() {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("EcoTrack") },
+                title = { Text("Set up Profile") },
                 navigationIcon = {
                     Box(
                         modifier = Modifier
@@ -104,7 +96,7 @@ fun ScreenScaffold() {
             ) {
                 navItems.forEachIndexed { index, item ->
                     NavigationBarItem(
-                        selected = index == 0, // Appliances selected (UI-only)
+                        selected = index == 4, // Appliances selected (UI-only)
                         onClick = { /* no-op */ },
                         icon = { Icon(item.icon, contentDescription = item.label) },
                         label = { Text(item.label) }
@@ -118,7 +110,7 @@ fun ScreenScaffold() {
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            Home()
+            ProfileSetup()
         }
     }
 }
@@ -126,38 +118,6 @@ fun ScreenScaffold() {
 /* --------------------------------- SCREEN ---------------------------------- */
 
 private data class NavItem(val label: String, val icon: ImageVector)
-
-@Composable
-fun GeneralCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    mainText: String,
-    smallText: String,
-    progress: Float = 0f
-) {
-    Card(modifier = Modifier.padding(bottom = 10.dp)) {
-        Spacer(modifier = Modifier.height(10.dp))
-        if (title != "")
-            BoldText(text = title)
-        if (mainText != "")
-            BoldText(text = mainText)
-        if (smallText != "")
-            SmallText(text = smallText)
-        if (progress != 0f) {
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(10.dp),
-                color = ProgressIndicatorDefaults.linearColor,
-                trackColor = ProgressIndicatorDefaults.linearTrackColor,
-                strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
-            )
-        } else {
-            Spacer(modifier = Modifier.height(10.dp))
-        }
-    }
-}
 
 @Composable
 fun BoldText(modifier: Modifier = Modifier, text: String) {
@@ -182,7 +142,7 @@ fun SmallText(modifier: Modifier = Modifier, text: String) {
 }
 
 @Composable
-fun Home(modifier: Modifier = Modifier) {
+fun ProfileSetup(modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize(),
@@ -195,86 +155,277 @@ fun Home(modifier: Modifier = Modifier) {
                     .padding(10.dp)
                     .fillMaxWidth()
             ) {
-                //Spacer(modifier = Modifier.height(36.dp))
                 Text(
-                    text = "Good morning!",
+                    text = "Step 1",
                     modifier = Modifier
                         .fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "Lets track your eco impact today",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 10.dp),
-                    textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                GeneralCard(title = "EcoPoints", mainText = "2,450", smallText = "🔥 7-day streak")
-                GeneralCard(
-                    title = "Electricity",
-                    mainText = "8.4 kWh",
-                    smallText = "Today's usage",
-                    progress = 0.8f
-                )
-                GeneralCard(
-                    title = "Plastic Saved",
-                    mainText = "2.1 kg",
-                    smallText = "This week = 7 bottles",
-                    progress = 0.5f
-                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Card {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    BoldText(text = "User Information")
+                    SmallText(text = "Enter your name:")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Name") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                BoldText(text = "Quick Actions")
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                ) {
-                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Add Appliance"
-                        )
-                    }
-                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Log Purchase"
-                        )
-                    }
+                    SmallText(text = "Enter your email:")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Email") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SmallText(text = "Enter your date of birth:")
+                    DisplayDatePicker()
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                ) {
-                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "View Tips"
-                        )
-                    }
-                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "View Stats"
-                        )
-                    }
-                }
-                BoldText(text = "Recent Activity")
-                GeneralCard(
-                    title = "Plastic bottle avoided",
-                    mainText = "2 hours ago",
-                    smallText = "+50 pts"
-                )
-                GeneralCard(
-                    title = "Washing machine usage logged",
-                    mainText = "5 hours ago",
-                    smallText = "+25 pts"
-                )
-                GeneralCard(
-                    title = "Today's Eco Tip",
-                    mainText = "",
-                    smallText = "Unplug devices when not in use"
-                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Card {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    BoldText(text = "Household Information")
+                    SmallText(text = "How many people live in your household?")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Enter number of people") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SmallText(text = "What type of home do you live in?")
 
+                    val radioOptions = listOf("Apartment", "Detached House", "Townhouse", "Other")
+                    val (selectedOption, onOptionSelected) = remember { mutableStateOf(radioOptions[0]) }
+                    // Note that Modifier.selectableGroup() is essential to ensure correct accessibility behavior
+                    Column(modifier.selectableGroup()) {
+                        radioOptions.forEach { text ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .selectable(
+                                        selected = (text == selectedOption),
+                                        onClick = { onOptionSelected(text) },
+                                        role = Role.RadioButton
+                                    )
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = (text == selectedOption),
+                                    onClick = null // null recommended for accessibility with screen readers
+                                )
+                                Text(
+                                    text = text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 16.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SmallText(text = "Which of the following do you use regularly?")
+                    Row {
+                        Column {
+                            CheckboxItem("Refrigerator")
+                            CheckboxItem("Air Conditioner")
+                            CheckboxItem("Television")
+                            CheckboxItem("Microwave")
+                        }
+                        Column {
+                            CheckboxItem("Washing Machine")
+                            CheckboxItem("Heater")
+                            CheckboxItem("Computer")
+                            CheckboxItem("Other")
+                        }
+
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Card {
+                    BoldText(text="Location and Utility Information")
+                    SmallText(text = "Select your state:")
+                    StateMenu()
+                    SmallText(text = "Electricity Provider (e.g. AGL, Origin):")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Electricity Provider") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Card {
+                    BoldText(text="Eco Preferences")
+                    SmallText(text = "Notification Preferences")
+                    Switch("Energy Tips")
+                    Switch("Weekly Progress Summary")
+                }
             }
         }
     }
+}
 
+@Composable
+fun CheckboxItem(name: String) {
+    var checked by remember { mutableStateOf(true) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { checked = it }
+        )
+        Text(
+            name,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@Composable
+fun Switch(name: String) {
+    Row (
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ){
+        SmallText(text = name)
+        var checked by remember { mutableStateOf(true) }
+
+        Switch(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            checked = checked,
+            onCheckedChange = {
+                checked = it
+            }
+        )
+    }
+}
+
+@RequiresApi(0)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DisplayDatePicker() {
+    val calendar = Calendar.getInstance()
+    var birthday by remember { mutableStateOf("") }
+    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = Instant.now().toEpochMilli()
+    )
+    var showDatePicker by remember {
+        mutableStateOf(false)
+    }
+    var selectedDate by remember {
+        mutableStateOf(calendar.timeInMillis)
+    }
+    Column(modifier = Modifier.padding(10.dp)) {
+        TextField(
+            value = birthday,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Birthday") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showDatePicker = true },
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.DateRange,
+                    contentDescription = "Select Date",
+                    modifier = Modifier
+                        .clickable { showDatePicker = true }
+                        .size(40.dp)
+                )
+            }
+        )
+        if (showDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = {
+                    showDatePicker = false
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDatePicker = false
+                        selectedDate = datePickerState.selectedDateMillis!!
+                        birthday = "DoB: ${formatter.format(Date(selectedDate))}"
+                    }) {
+                        Text(text = "OK")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showDatePicker = false
+                    }) {
+                        Text(text = "Cancel")
+                    }
+                }
+            ) //end of dialog
+            { //still column scope
+                DatePicker(
+                    state = datePickerState
+                )
+            }
+        }// end of if
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StateMenu() {
+    val states = listOf("VIC", "QLD", "NSW", "SA", "TAS", "WA", "ACT", "NT")
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedState = remember { mutableStateOf(states[0]) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+    )
+    {
+        ExposedDropdownMenuBox(
+            expanded = isExpanded,
+            modifier = Modifier.padding(10.dp),
+            onExpandedChange = { isExpanded = it },
+        ) {
+            TextField(
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+                    .focusProperties {
+                        canFocus = false
+                    },
+                readOnly = true,
+                value = selectedState.value,
+                onValueChange = {},
+                label = { Text("State") },
+//manages the arrow icon up and down
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded)
+                },
+            )
+            ExposedDropdownMenu(
+                expanded = isExpanded,
+                onDismissRequest = { isExpanded = false }
+            )
+            {
+                states.forEach { selectionOption ->
+                    DropdownMenuItem(
+                        text = { Text(selectionOption) },
+                        onClick = {
+                            selectedState.value = selectionOption
+                            isExpanded = false
+                        },
+                        contentPadding =
+                            ExposedDropdownMenuDefaults.ItemContentPadding,
+                    )
+                }
+            }
+        }
+    }
 }
