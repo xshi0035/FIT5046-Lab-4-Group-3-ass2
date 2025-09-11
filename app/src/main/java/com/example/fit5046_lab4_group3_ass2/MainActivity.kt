@@ -106,7 +106,7 @@ fun ScreenScaffold() {
 private data class NavItem(val label: String, val icon: ImageVector)
 
 @Composable
-fun GeneralCard(
+fun HomeScreenCard(
     modifier: Modifier = Modifier,
     title: String,
     mainText: String,
@@ -116,7 +116,7 @@ fun GeneralCard(
 ) {
     Card(modifier = Modifier.padding(bottom = 10.dp)) {
         Spacer(modifier = Modifier.height(10.dp))
-        Row (modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             if (title != "")
                 BoldText(text = title)
             if (rightText != "")
@@ -147,7 +147,6 @@ fun BoldText(modifier: Modifier = Modifier, text: String) {
     Text(
         text = text,
         modifier = Modifier
-            //.fillMaxWidth()
             .padding(horizontal = 10.dp),
         style = MaterialTheme.typography.labelLarge
     )
@@ -158,18 +157,17 @@ fun SmallText(modifier: Modifier = Modifier, text: String) {
     Text(
         text = text,
         modifier = Modifier
-            //.fillMaxWidth()
             .padding(horizontal = 10.dp),
         style = MaterialTheme.typography.bodyMedium
     )
 }
 
+//Home screen
 @Composable
 fun Home(modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize(),
-        //.padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 96.dp)
     ) {
         item {
@@ -178,7 +176,6 @@ fun Home(modifier: Modifier = Modifier) {
                     .padding(10.dp)
                     .fillMaxWidth()
             ) {
-                //Spacer(modifier = Modifier.height(36.dp))
                 Text(
                     text = "Good morning!",
                     modifier = Modifier
@@ -194,15 +191,21 @@ fun Home(modifier: Modifier = Modifier) {
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                GeneralCard(title = "EcoPoints", mainText = "2,450", smallText = "🔥 7-day streak", rightText = "\uD83C\uDFC6")
-                GeneralCard(
+
+                HomeScreenCard(
+                    title = "EcoPoints",
+                    mainText = "2,450",
+                    smallText = "🔥 7-day streak",
+                    rightText = "\uD83C\uDFC6"
+                )
+                HomeScreenCard(
                     title = "⚡ Electricity",
                     mainText = "8.4 kWh",
                     smallText = "Today's usage",
                     progress = 0.8f,
                     rightText = "-12%"
                 )
-                GeneralCard(
+                HomeScreenCard(
                     title = "♻\uFE0F Plastic Saved",
                     mainText = "2.1 kg",
                     smallText = "This week = 7 bottles",
@@ -216,17 +219,28 @@ fun Home(modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .fillMaxWidth()
                 ) {
-                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp)) {
-                        Column (horizontalAlignment = Alignment.CenterHorizontally) {
+                    Button(
+                        onClick = {}, modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Filled.Add, contentDescription = "Add")
                             Text(
                                 text = "Add Appliance"
                             )
                         }
                     }
-                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp)) {
-                        Column (horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Filled.ShoppingCart, contentDescription = "Log purchase")
+                    Button(
+                        onClick = {}, modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Filled.ShoppingCart,
+                                contentDescription = "Log purchase"
+                            )
                             Text(
                                 text = "Log Purchase"
                             )
@@ -238,16 +252,24 @@ fun Home(modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .fillMaxWidth()
                 ) {
-                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp)) {
-                        Column (horizontalAlignment = Alignment.CenterHorizontally) {
+                    Button(
+                        onClick = {}, modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Filled.Info, contentDescription = "View Tips")
                             Text(
                                 text = "View Tips"
                             )
                         }
                     }
-                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp)) {
-                        Column (horizontalAlignment = Alignment.CenterHorizontally) {
+                    Button(
+                        onClick = {}, modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Filled.Star, contentDescription = "View stats")
                             Text(
                                 text = "View Stats"
@@ -255,21 +277,22 @@ fun Home(modifier: Modifier = Modifier) {
                         }
                     }
                 }
+
                 Spacer(modifier = Modifier.height(10.dp))
                 BoldText(text = "Recent Activity")
-                GeneralCard(
+                HomeScreenCard(
                     title = "♻\uFE0F Plastic bottle avoided",
                     mainText = "",
                     smallText = "2 hours ago",
                     rightText = "+50 pts"
                 )
-                GeneralCard(
+                HomeScreenCard(
                     title = "⚡ TV usage logged",
                     mainText = "",
                     smallText = "5 hours ago",
                     rightText = "+25 pts"
                 )
-                GeneralCard(
+                HomeScreenCard(
                     title = "\uD83C\uDFC6 Achievement unlocked!",
                     mainText = "",
                     smallText = "Yesterday",
@@ -277,7 +300,7 @@ fun Home(modifier: Modifier = Modifier) {
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 BoldText(text = "Information")
-                GeneralCard(
+                HomeScreenCard(
                     title = "\uD83D\uDCA1 Today's Eco Tip",
                     mainText = "",
                     smallText = "Unplug devices when not in use",
