@@ -1,6 +1,5 @@
 package com.example.fit5046_lab4_group3_ass2
 
-import android.R.attr.checked
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -53,9 +52,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FIT5046Lab4Group3ass2Theme {
-                ElectricityScaffold()
-                //Home()
-                //ProfileSetup()
+                ScreenScaffold()
             }
         }
     }
@@ -100,7 +97,7 @@ private val demoSuggestions = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ElectricityScaffold() {
+fun ScreenScaffold() {
     // System icons only (placeholders where needed)
     val navItems = listOf(
         NavItem("Home", Icons.Filled.Home),
@@ -432,7 +429,7 @@ private data class NavItem(val label: String, val icon: ImageVector)
 @Composable
 fun ElectricityPreview() {
     FIT5046Lab4Group3ass2Theme {
-        ElectricityScaffold()
+        ScreenScaffold()
     }
 }
 
