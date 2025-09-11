@@ -161,23 +161,32 @@ fun LoginScreen() {
             singleLine = true,
             placeholder = { Text("Create a password") },
             trailingIcon = {
-                // Use the drawable as the eye icon
                 Icon(
                     painter = painterResource(id = R.drawable.show_password_icon),
                     contentDescription = "Show password",
                     modifier = Modifier.size(22.dp),
-                    tint = Color.Unspecified    // keep the original PNG colors
+                    tint = Color.Unspecified
                 )
             },
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         )
 
-
-        Spacer(Modifier.height(8.dp))
-
-        Row(Modifier.fillMaxWidth()) {
-            Spacer(Modifier.weight(1f))
+        // Remember me  |  Forgot Password?
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = false,
+                    onCheckedChange = null, // UI-only (disabled)
+                    enabled = false
+                )
+                Text("Remember me", style = MaterialTheme.typography.bodySmall)
+            }
             TextButton(onClick = { /* no-op */ }) {
                 Text("Forgot Password?")
             }
@@ -197,7 +206,7 @@ fun LoginScreen() {
 
         Spacer(Modifier.height(20.dp))
 
-        // New M3 HorizontalDivider inside a Row
+        // Divider with label
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Box(Modifier.weight(1f)) { HorizontalDivider() }
             Text(
