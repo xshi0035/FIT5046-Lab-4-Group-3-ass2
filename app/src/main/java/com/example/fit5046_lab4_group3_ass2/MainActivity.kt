@@ -161,15 +161,13 @@ fun LoginScreen() {
             singleLine = true,
             placeholder = { Text("Create a password") },
             trailingIcon = {
-                // Use your drawable as the eye icon
+                // Use the drawable as the eye icon
                 Icon(
                     painter = painterResource(id = R.drawable.show_password_icon),
                     contentDescription = "Show password",
                     modifier = Modifier.size(22.dp),
                     tint = Color.Unspecified    // keep the original PNG colors
                 )
-                // If you prefer a tappable feel (still no logic), wrap it:
-                // IconButton(onClick = { /* no-op */ }) { Icon( ...same as above... ) }
             },
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
