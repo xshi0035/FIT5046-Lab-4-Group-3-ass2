@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -109,12 +111,17 @@ fun GeneralCard(
     title: String,
     mainText: String,
     smallText: String,
-    progress: Float = 0f
+    progress: Float = 0f,
+    rightText: String
 ) {
     Card(modifier = Modifier.padding(bottom = 10.dp)) {
         Spacer(modifier = Modifier.height(10.dp))
-        if (title != "")
-            BoldText(text = title)
+        Row (modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,) {
+            if (title != "")
+                BoldText(text = title)
+            if (rightText != "")
+                SmallText(text = rightText)
+        }
         if (mainText != "")
             BoldText(text = mainText)
         if (smallText != "")
@@ -140,7 +147,7 @@ fun BoldText(modifier: Modifier = Modifier, text: String) {
     Text(
         text = text,
         modifier = Modifier
-            .fillMaxWidth()
+            //.fillMaxWidth()
             .padding(horizontal = 10.dp),
         style = MaterialTheme.typography.labelLarge
     )
@@ -187,66 +194,94 @@ fun Home(modifier: Modifier = Modifier) {
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                GeneralCard(title = "EcoPoints", mainText = "2,450", smallText = "🔥 7-day streak")
+                GeneralCard(title = "EcoPoints", mainText = "2,450", smallText = "🔥 7-day streak", rightText = "\uD83C\uDFC6")
                 GeneralCard(
-                    title = "Electricity",
+                    title = "⚡ Electricity",
                     mainText = "8.4 kWh",
                     smallText = "Today's usage",
-                    progress = 0.8f
+                    progress = 0.8f,
+                    rightText = "-12%"
                 )
                 GeneralCard(
-                    title = "Plastic Saved",
+                    title = "♻\uFE0F Plastic Saved",
                     mainText = "2.1 kg",
                     smallText = "This week = 7 bottles",
-                    progress = 0.5f
+                    progress = 0.5f,
+                    rightText = "+2.1kg"
                 )
 
                 BoldText(text = "Quick Actions")
+                Spacer(modifier = Modifier.height(10.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                 ) {
-                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Add Appliance"
-                        )
+                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp)) {
+                        Column (horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.Add, contentDescription = "Add")
+                            Text(
+                                text = "Add Appliance"
+                            )
+                        }
                     }
-                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Log Purchase"
-                        )
+                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp)) {
+                        Column (horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.ShoppingCart, contentDescription = "Log purchase")
+                            Text(
+                                text = "Log Purchase"
+                            )
+                        }
                     }
                 }
+                Spacer(modifier = Modifier.height(10.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                 ) {
-                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "View Tips"
-                        )
+                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp)) {
+                        Column (horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.Info, contentDescription = "View Tips")
+                            Text(
+                                text = "View Tips"
+                            )
+                        }
                     }
-                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "View Stats"
-                        )
+                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp)) {
+                        Column (horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.Star, contentDescription = "View stats")
+                            Text(
+                                text = "View Stats"
+                            )
+                        }
                     }
                 }
+                Spacer(modifier = Modifier.height(10.dp))
                 BoldText(text = "Recent Activity")
                 GeneralCard(
-                    title = "Plastic bottle avoided",
-                    mainText = "2 hours ago",
-                    smallText = "+50 pts"
-                )
-                GeneralCard(
-                    title = "Washing machine usage logged",
-                    mainText = "5 hours ago",
-                    smallText = "+25 pts"
-                )
-                GeneralCard(
-                    title = "Today's Eco Tip",
+                    title = "♻\uFE0F Plastic bottle avoided",
                     mainText = "",
-                    smallText = "Unplug devices when not in use"
+                    smallText = "2 hours ago",
+                    rightText = "+50 pts"
+                )
+                GeneralCard(
+                    title = "⚡ TV usage logged",
+                    mainText = "",
+                    smallText = "5 hours ago",
+                    rightText = "+25 pts"
+                )
+                GeneralCard(
+                    title = "\uD83C\uDFC6 Achievement unlocked!",
+                    mainText = "",
+                    smallText = "Yesterday",
+                    rightText = "+100 pts"
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                BoldText(text = "Information")
+                GeneralCard(
+                    title = "\uD83D\uDCA1 Today's Eco Tip",
+                    mainText = "",
+                    smallText = "Unplug devices when not in use",
+                    rightText = ""
                 )
 
             }
