@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -158,12 +159,24 @@ fun SignUpScreen() {
         OutlinedTextField(
             value = "",
             onValueChange = {},
-            readOnly = true, // UI-only
+            readOnly = true,              // UI-only
             singleLine = true,
             placeholder = { Text("Create a password") },
+            trailingIcon = {
+                // Use your drawable as the eye icon
+                Icon(
+                    painter = painterResource(id = R.drawable.show_password_icon),
+                    contentDescription = "Show password",
+                    modifier = Modifier.size(22.dp),
+                    tint = Color.Unspecified    // keep the original PNG colors
+                )
+                // If you prefer a tappable feel (still no logic), wrap it:
+                // IconButton(onClick = { /* no-op */ }) { Icon( ...same as above... ) }
+            },
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         )
+
 
         // Strength bar + label (static UI)
         Spacer(Modifier.height(8.dp))
