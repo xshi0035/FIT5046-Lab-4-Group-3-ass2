@@ -141,13 +141,13 @@ fun SmallText(modifier: Modifier = Modifier, text: String) {
     )
 }
 
+//Profile setup screen
 @Composable
 fun ProfileSetup(modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize(),
-        //.padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 96.dp)
+        contentPadding = PaddingValues(bottom = 36.dp)
     ) {
         item {
             Column(
@@ -167,6 +167,7 @@ fun ProfileSetup(modifier: Modifier = Modifier) {
                         .fillMaxWidth(),
                     style = MaterialTheme.typography.bodyMedium
                 )
+
                 Spacer(modifier = Modifier.height(10.dp))
                 Card {
                     Spacer(modifier = Modifier.height(10.dp))
@@ -175,18 +176,23 @@ fun ProfileSetup(modifier: Modifier = Modifier) {
                         value = "",
                         label = { SmallText(text = "Name *") },
                         onValueChange = {},
-                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
+                        modifier = Modifier
+                            .padding(horizontal = 10.dp)
+                            .fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = "",
                         label = { SmallText(text = "Email *") },
                         onValueChange = {},
-                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
+                        modifier = Modifier
+                            .padding(horizontal = 10.dp)
+                            .fillMaxWidth()
                     )
                     DisplayDatePicker()
                     Spacer(modifier = Modifier.height(10.dp))
                 }
+
                 Spacer(modifier = Modifier.height(20.dp))
                 Card {
                     Spacer(modifier = Modifier.height(10.dp))
@@ -194,20 +200,24 @@ fun ProfileSetup(modifier: Modifier = Modifier) {
                     SmallText(text = "How many people live in your household?")
                     OutlinedTextField(
                         value = "",
-                        label = { SmallText(text = "Number of people") },
+                        label = { SmallText(text = "Number of people *") },
                         onValueChange = {},
-                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
+                        modifier = Modifier
+                            .padding(horizontal = 10.dp)
+                            .fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     HorizontalDivider(thickness = 2.dp)
                     Spacer(modifier = Modifier.height(10.dp))
 
                     SmallText(text = "Which type of home do you live in?")
-                    val radioOptions = listOf("Apartment", "Detached House", "Townhouse", "Other")
-                    val (selectedOption, onOptionSelected) = remember { mutableStateOf(radioOptions[0]) }
-                    // Note that Modifier.selectableGroup() is essential to ensure correct accessibility behavior
+                    val homeRadioOptions =
+                        listOf("Apartment", "Detached House", "Townhouse", "Other")
+                    val (selectedOption, onOptionSelected) = remember {
+                        mutableStateOf(homeRadioOptions[0])
+                    }
                     Column(modifier.selectableGroup()) {
-                        radioOptions.forEach { text ->
+                        homeRadioOptions.forEach { text ->
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -232,10 +242,10 @@ fun ProfileSetup(modifier: Modifier = Modifier) {
                             }
                         }
                     }
+
                     Spacer(modifier = Modifier.height(10.dp))
                     HorizontalDivider(thickness = 2.dp)
                     Spacer(modifier = Modifier.height(10.dp))
-
                     SmallText(text = "Which of the following appliances do you use regularly?")
                     Row {
                         Column {
@@ -254,36 +264,42 @@ fun ProfileSetup(modifier: Modifier = Modifier) {
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
+
                 Spacer(modifier = Modifier.height(20.dp))
                 Card {
                     BoldText(text = "Location and Utility Information")
                     SmallText(text = "Select your state:")
                     StateMenu()
+
                     SmallText(text = "Electricity Provider (e.g. AGL, Origin):")
                     OutlinedTextField(
                         value = "",
                         label = { SmallText(text = "Electricity Provider") },
                         onValueChange = {},
-                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
+                        modifier = Modifier
+                            .padding(horizontal = 10.dp)
+                            .fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                 }
+
                 Spacer(modifier = Modifier.height(20.dp))
                 Card {
                     BoldText(text = "Eco Preferences")
                     SmallText(text = "Notification Preferences")
-                    Switch("Energy Tips")
-                    Switch("Weekly Progress Summary")
+                    Switch("Energy Tips *")
+                    Switch("Weekly Progress Summary *")
 
                     Spacer(modifier = Modifier.height(10.dp))
                     HorizontalDivider(thickness = 2.dp)
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    SmallText(text = "What is your preferred motivation style?")
+                    SmallText(text = "What is your preferred motivation style? *")
                     val radioOptions =
                         listOf("Financial Savings", "Environmental Impact", "Balanced")
-                    val (selectedOption, onOptionSelected) = remember { mutableStateOf(radioOptions[0]) }
-                    // Note that Modifier.selectableGroup() is essential to ensure correct accessibility behavior
+                    val (selectedOption, onOptionSelected) = remember {
+                        mutableStateOf(radioOptions[0])
+                    }
                     Column(modifier.selectableGroup()) {
                         radioOptions.forEach { text ->
                             Row(
@@ -313,55 +329,88 @@ fun ProfileSetup(modifier: Modifier = Modifier) {
                 }
                 Spacer(modifier = Modifier.height(20.dp))
                 Card {
-                    BoldText(text = "Optional Personalisation")
+                    BoldText(text = "Additional Personalisation")
                     SmallText(text = "Name for Dashboard:")
                     OutlinedTextField(
                         value = "",
                         label = { SmallText(text = "Dashboard Name") },
                         onValueChange = {},
-                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth()
+                        modifier = Modifier
+                            .padding(horizontal = 10.dp)
+                            .fillMaxWidth()
                     )
                     SmallText(text = "This name will be used in various parts of the app, such as motivational messages")
+
                     Spacer(modifier = Modifier.height(10.dp))
                     SmallText(text = "Set Profile Avatar:")
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth().padding(horizontal = 10.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp)
                     ) {
-                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
-                            contentPadding = PaddingValues(0.dp)) {
+                        Button(
+                            onClick = {}, modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
                             Text(text = "\uD83C\uDF33")
                         }
-                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
-                            contentPadding = PaddingValues(0.dp)) {
+                        Button(
+                            onClick = {}, modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
                             Text(text = "⚡")
                         }
-                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
-                            contentPadding = PaddingValues(0.dp)) {
+                        Button(
+                            onClick = {}, modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
                             Text(text = "\uD83D\uDCA7")
                         }
-                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
-                            contentPadding = PaddingValues(0.dp)) {
+                        Button(
+                            onClick = {}, modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
                             Text(text = "\uD83C\uDF3F")
                         }
-                        Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
-                            contentPadding = PaddingValues(0.dp)) {
+                        Button(
+                            onClick = {}, modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 5.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
                             Text(text = "\uD83C\uDF31")
                         }
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
+
                 Spacer(modifier = Modifier.height(30.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                 ) {
-                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
-                        contentPadding = PaddingValues(5.dp)) {
+                    Button(
+                        onClick = {}, modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp),
+                        contentPadding = PaddingValues(5.dp)
+                    ) {
                         Text(text = "Skip for Now")
                     }
-                    Button(onClick = {}, modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
-                        contentPadding = PaddingValues(5.dp)) {
+                    Button(
+                        onClick = {}, modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp),
+                        contentPadding = PaddingValues(5.dp)
+                    ) {
                         Text(text = "Save & Continue")
                     }
                 }
