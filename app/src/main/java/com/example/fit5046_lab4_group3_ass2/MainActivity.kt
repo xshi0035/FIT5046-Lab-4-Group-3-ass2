@@ -168,7 +168,7 @@ fun Home(modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 96.dp)
+        contentPadding = PaddingValues(bottom = 36.dp)
     ) {
         item {
             Column(
