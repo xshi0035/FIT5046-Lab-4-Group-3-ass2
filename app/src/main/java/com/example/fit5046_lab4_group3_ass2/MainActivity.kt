@@ -8,6 +8,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
@@ -17,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Star
@@ -29,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -481,7 +484,7 @@ fun SmallText(modifier: Modifier = Modifier, text: String) {
     Text(
         text = text,
         modifier = Modifier
-            .fillMaxWidth()
+            //.fillMaxWidth()
             .padding(horizontal = 10.dp),
         style = MaterialTheme.typography.bodyMedium
     )
@@ -675,25 +678,83 @@ fun ProfileSetup(modifier: Modifier = Modifier) {
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                     SmallText(text = "Which of the following do you use regularly?")
+                    Row {
+                        Column {
+                            CheckboxItem("Refrigerator")
+                            CheckboxItem("Air Conditioner")
+                            CheckboxItem("Television")
+                            CheckboxItem("Microwave")
+                        }
+                        Column {
+                            CheckboxItem("Washing Machine")
+                            CheckboxItem("Heater")
+                            CheckboxItem("Computer")
+                            CheckboxItem("Other")
+                        }
 
-                    var checked by remember { mutableStateOf(true) }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(
-                            checked = checked,
-                            onCheckedChange = { checked = it }
-                        )
-                        Text(
-                            "Refrigerator",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
                     }
-
                     Spacer(modifier = Modifier.height(10.dp))
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Card {
+                    BoldText(text="Location and Utility Information")
+                    SmallText(text = "Select your state:")
+                    StateMenu()
+                    SmallText(text = "Electricity Provider (e.g. AGL, Origin):")
+                    OutlinedTextField(
+                        value = "",
+                        label = { SmallText(text = "Electricity Provider") },
+                        onValueChange = {},
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Card {
+                    BoldText(text="Eco Preferences")
+                    SmallText(text = "Notification Preferences")
+                    Switch("Energy Tips")
+                    Switch("Weekly Progress Summary")
                 }
             }
         }
+    }
+}
+
+@Composable
+fun CheckboxItem(name: String) {
+    var checked by remember { mutableStateOf(true) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { checked = it }
+        )
+        Text(
+            name,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@Composable
+fun Switch(name: String) {
+    Row (
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ){
+        SmallText(text = name)
+        var checked by remember { mutableStateOf(true) }
+
+        Switch(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            checked = checked,
+            onCheckedChange = {
+                checked = it
+            }
+        )
     }
 }
 
@@ -724,7 +785,7 @@ fun DisplayDatePicker() {
                 .clickable { showDatePicker = true },
             trailingIcon = {
                 Icon(
-                    painter = painterResource(id = R.drawable.calendar_icon),
+                    Icons.Filled.DateRange,
                     contentDescription = "Select Date",
                     modifier = Modifier
                         .clickable { showDatePicker = true }
@@ -746,11 +807,12 @@ fun DisplayDatePicker() {
                         Text(text = "OK")
                     }
                 },
-                dismissButton = {TextButton(onClick = {
-                    showDatePicker = false
-                }) {
-                    Text(text = "Cancel")
-                }
+                dismissButton = {
+                    TextButton(onClick = {
+                        showDatePicker = false
+                    }) {
+                        Text(text = "Cancel")
+                    }
                 }
             ) //end of dialog
             { //still column scope
@@ -759,5 +821,58 @@ fun DisplayDatePicker() {
                 )
             }
         }// end of if
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StateMenu() {
+    val states = listOf("VIC", "QLD", "NSW", "SA", "TAS", "WA", "ACT", "NT")
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedState = remember { mutableStateOf(states[0]) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+    )
+    {
+        ExposedDropdownMenuBox(
+            expanded = isExpanded,
+            modifier = Modifier.padding(10.dp),
+            onExpandedChange = { isExpanded = it },
+        ) {
+            TextField(
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+                    .focusProperties {
+                        canFocus = false
+                    },
+                readOnly = true,
+                value = selectedState.value,
+                onValueChange = {},
+                label = { Text("State") },
+//manages the arrow icon up and down
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded)
+                },
+            )
+            ExposedDropdownMenu(
+                expanded = isExpanded,
+                onDismissRequest = { isExpanded = false }
+            )
+            {
+                states.forEach { selectionOption ->
+                    DropdownMenuItem(
+                        text = { Text(selectionOption) },
+                        onClick = {
+                            selectedState.value = selectionOption
+                            isExpanded = false
+                        },
+                        contentPadding =
+                            ExposedDropdownMenuDefaults.ItemContentPadding,
+                    )
+                }
+            }
+        }
     }
 }
