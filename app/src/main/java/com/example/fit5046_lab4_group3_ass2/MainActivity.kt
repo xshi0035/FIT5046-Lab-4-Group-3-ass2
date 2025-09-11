@@ -51,7 +51,7 @@ fun EcoTrackScaffold() {
     val navItems = listOf(
         "Home" to Icons.Filled.Home,
         "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,
+        "EcoTrack" to Icons.Filled.Info,     // renamed from "Plastic"
         "Reward" to Icons.Filled.Star,
         "Profile" to Icons.Filled.AccountCircle
     )
@@ -97,23 +97,39 @@ fun EcoTrackScaffold() {
 
 /* -------------------------------- SCREEN -------------------------------- */
 
+private enum class PriceSeverity { Normal, High, Severe }
+
 @Composable
 fun EcoTrackScreen() {
     // Static demo values — UI only
     val todayKwh = 8.2f
     val avgKwh = 12.6f
-    val rrpAudPerMwh = 132f // drives alert banner style (UI only)
+    val rrpAudPerMwh = 132f // <— change this number to test the tiers
+
+    val severity = when {
+        rrpAudPerMwh > 200f -> PriceSeverity.Severe
+        rrpAudPerMwh > 100f -> PriceSeverity.High
+        else -> PriceSeverity.Normal
+    }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp) // keep last card above nav bar
+        contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp)
     ) {
         item { PeriodChips(selectedIndex = 0) }  // Daily
 
-        item { ChartPlaceholderCard() }          // empty chart holder
+        // NEW: Prominent "Today's Price" card
+        item { PriceHeaderCard(rrpAudPerMwh, severity) }
+
+        // Optional banner only when High/Severe
+        if (severity != PriceSeverity.Normal) {
+            item { PriceAlertBanner(rrpAudPerMwh, severity) }
+        }
+
+        item { ChartPlaceholderCard() }          // leave empty (image holder)
 
         item {
             Row(
@@ -125,8 +141,6 @@ fun EcoTrackScreen() {
                 KpiCard(value = "$2.46", label = "Cost Today", modifier = Modifier.weight(1f))
             }
         }
-
-        item { PriceAlertBanner(rrpAudPerMwh = rrpAudPerMwh) }
 
         item {
             UsageVsAverageCard(
@@ -207,6 +221,93 @@ private fun SegChip(
     }
 }
 
+/** NEW: compact, prominent price card */
+@Composable
+private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
+    val (badgeColor, badgeText, badgeIcon) = when (severity) {
+        PriceSeverity.Severe -> Triple(
+            MaterialTheme.colorScheme.errorContainer,
+            "Severe",
+            Icons.Filled.Warning
+        )
+        PriceSeverity.High -> Triple(
+            MaterialTheme.colorScheme.tertiaryContainer,
+            "High",
+            Icons.Filled.Info
+        )
+        PriceSeverity.Normal -> Triple(
+            MaterialTheme.colorScheme.surfaceVariant,
+            "Normal",
+            Icons.Filled.Info
+        )
+    }
+
+    Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Today’s Price", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${rrpAudPerMwh.toInt()} AUD/MWh",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.weight(1f)
+                )
+                AssistChip(
+                    onClick = { /* UI only */ },
+                    label = { Text(badgeText) },
+                    leadingIcon = { Icon(badgeIcon, contentDescription = null) },
+                    colors = AssistChipDefaults.assistChipColors(containerColor = badgeColor)
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Alerts: High > 100 • Severe > 200",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Optional banner — shown only when price is High/Severe */
+@Composable
+private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
+    val (containerColor, title, message, icon) = when (severity) {
+        PriceSeverity.Severe -> Quad(
+            MaterialTheme.colorScheme.errorContainer,
+            "Severe price alert",
+            "Prices are very high (> 200 AUD/MWh). Cutting back now can save a lot.",
+            Icons.Filled.Warning
+        )
+        PriceSeverity.High -> Quad(
+            MaterialTheme.colorScheme.tertiaryContainer,
+            "High price alert",
+            "Electricity prices are high (> 100 AUD/MWh). Consider reducing usage.",
+            Icons.Filled.Info
+        )
+        PriceSeverity.Normal -> return // do not render when normal
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            AssistChip(onClick = { /* UI only */ }, label = { Text("Details") })
+        }
+    }
+}
+
+/** Tiny helper to return 4 typed values cleanly */
+private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+
 @Composable
 private fun ChartPlaceholderCard() {
     Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
@@ -218,7 +319,6 @@ private fun ChartPlaceholderCard() {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Placeholder only – no real chart
             Text("Daily Usage Chart", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 "kWh consumption over time",
@@ -241,51 +341,6 @@ private fun KpiCard(value: String, label: String, modifier: Modifier = Modifier)
             Text(value, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(2.dp))
             Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun PriceAlertBanner(rrpAudPerMwh: Float) {
-    val containerColor: Color
-    val icon: ImageVector
-    val title: String
-    val message: String
-
-    when {
-        rrpAudPerMwh > 200f -> {
-            containerColor = MaterialTheme.colorScheme.errorContainer
-            icon = Icons.Filled.Warning
-            title = "Severe price alert"
-            message = "Prices are very high (> 200 AUD/MWh). Cutting back now can save a lot."
-        }
-        rrpAudPerMwh > 100f -> {
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer
-            icon = Icons.Filled.Info
-            title = "High price alert"
-            message = "Electricity prices are high (> 100 AUD/MWh). Consider reducing usage."
-        }
-        else -> {
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-            icon = Icons.Filled.Info
-            title = "Normal price"
-            message = "Prices look normal today. No action needed."
-        }
-    }
-
-    Card(
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.SemiBold)
-                Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            AssistChip(onClick = { /* UI only */ }, label = { Text("Details") })
         }
     }
 }
