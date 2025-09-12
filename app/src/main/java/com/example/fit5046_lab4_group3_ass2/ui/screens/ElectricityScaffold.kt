@@ -78,7 +78,7 @@ fun ElectricityScaffold() {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Electricity") },
+                title = { Text("Appliances") },
                 navigationIcon = {
                     Box(
                         modifier = Modifier

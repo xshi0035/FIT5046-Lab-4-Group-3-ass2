@@ -37,9 +37,9 @@ data class HomeUi(
     val title: String = "Welcome to EcoTrack",
     val subtitle: String = "Track your environmental impact and earn rewards",
     val features: List<HomeFeature> = listOf(
-        HomeFeature("⚡️", "Save Electricity", "Monitor your appliances and reduce energy consumption"),
-        HomeFeature("♻️", "Reduce Plastic", "Track plastic alternatives and make eco-friendly choices"),
-        HomeFeature("⭐", "Earn EcoPoints", "Get rewarded for your sustainable actions")
+        HomeFeature("⚡️", "Today's Electricity Price", "Track today’s price in your state (AUD/MWh)"),
+        HomeFeature( emoji = "📈", "Usage & Cost", "Monitor your appliances and see your estimated cost"),
+        HomeFeature("⭐", "Earn EcoPoints", "Get rewarded for saving energy during high-price hours")
     )
 )
 
