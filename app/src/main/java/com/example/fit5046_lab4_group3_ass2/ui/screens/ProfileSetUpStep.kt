@@ -9,18 +9,15 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +34,9 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScaffold() {
+    // 1..2
+    var step by rememberSaveable { mutableStateOf(1) }
+
     // Use Pair<String, ImageVector> to avoid private type issues
     val navItems: List<Pair<String, ImageVector>> = listOf(
         "Home" to Icons.Filled.Home,
@@ -51,24 +51,24 @@ fun ProfileScaffold() {
             CenterAlignedTopAppBar(
                 title = { Text("Set up Profile") },
                 navigationIcon = {
-                    Box(
+                    Surface(
+                        shape = CircleShape,
+                        tonalElevation = 1.dp,
                         modifier = Modifier
                             .padding(start = 8.dp)
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) { Text("←") }
+                    ) { Box(contentAlignment = Alignment.Center) { Text("←") } }
                 },
                 actions = {
-                    Box(
+                    Surface(
+                        shape = CircleShape,
+                        tonalElevation = 1.dp,
                         modifier = Modifier
                             .padding(end = 12.dp)
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) { Text("⋮") }
+                    ) { Box(contentAlignment = Alignment.Center) { Text("⋮") } }
                 }
             )
         },
@@ -90,7 +90,12 @@ fun ProfileScaffold() {
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            ProfileSetup()
+            ProfileSetup(
+                step = step,
+                onStepPrev = { if (step > 1) step-- },
+                onStepNext = { if (step < 2) step++ },
+                onStepJump = { s -> step = s.coerceIn(1, 2) },
+            )
         }
     }
 }
@@ -118,17 +123,6 @@ private fun SectionCard(
 }
 
 @Composable
-fun BoldText(text: String) {
-    Text(
-        text = text,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp),
-        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
-    )
-}
-
-@Composable
 fun SmallText(text: String) {
     Text(
         text = text,
@@ -137,215 +131,291 @@ fun SmallText(text: String) {
     )
 }
 
+/** Step chips + progress bar (consistent “segmented” look used in the app) */
 @Composable
-fun ProfileSetup(modifier: Modifier = Modifier) {
+private fun SetupProgress(
+    step: Int,           // 1..2
+    total: Int = 2,
+    onStepClick: (Int) -> Unit
+) {
+    val bg = MaterialTheme.colorScheme.surfaceVariant
+    val sel = MaterialTheme.colorScheme.surface
+
+    Column(Modifier.fillMaxWidth()) {
+        // Chips
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(bg, RoundedCornerShape(12.dp))
+                .padding(4.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                StepChip("Step 1", step == 1, Modifier.weight(1f), sel, bg) { onStepClick(1) }
+                StepChip("Step 2", step == 2, Modifier.weight(1f), sel, bg) { onStepClick(2) }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        // Linear progress
+        LinearProgressIndicator(
+            progress = step / total.toFloat(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp),
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun StepChip(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier,
+    selectedColor: Color,
+    unselectedColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = if (selected) selectedColor else unselectedColor,
+        shape = RoundedCornerShape(10.dp),
+        modifier = modifier
+            .height(40.dp)
+            .clickable { onClick() }
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                label,
+                fontWeight = FontWeight.Medium,
+                color = if (selected) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun ProfileSetup(
+    step: Int,
+    onStepPrev: () -> Unit,
+    onStepNext: () -> Unit,
+    onStepJump: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+
+        // Progress header
         item {
-            Column(Modifier.fillMaxWidth()) {
-                Text("Step 1", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "* means the field is required to be filled in.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            SetupProgress(step = step, onStepClick = onStepJump)
         }
 
-        // User Information
+        // Small helper text
         item {
-            SectionCard("User Information") {
-                OutlinedTextField(
-                    value = "",
-                    onValueChange = {},
-                    label = { SmallText("Name *") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = "",
-                    onValueChange = {},
-                    label = { SmallText("Email *") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
-                DisplayDatePicker()
-            }
+            Text(
+                "* means the field is required to be filled in.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
-        // Household Information
-        item {
-            SectionCard("Household Information") {
-                SmallText("How many people live in your household?")
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = "",
-                    onValueChange = {},
-                    label = { SmallText("Number of people *") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(16.dp))
-                Divider()
-                Spacer(Modifier.height(16.dp))
-
-                SmallText("Which type of home do you live in?")
-                Spacer(Modifier.height(6.dp))
-
-                val homeOptions = listOf("Apartment", "Detached House", "Townhouse", "Other")
-                var selectedHome by remember { mutableStateOf(homeOptions.first()) }
-
-                Column(Modifier.selectableGroup()) {
-                    homeOptions.forEach { option ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .selectable(
-                                    selected = (option == selectedHome),
-                                    onClick = { selectedHome = option },
-                                    role = Role.RadioButton
-                                ),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = option == selectedHome, onClick = null)
-                            Spacer(Modifier.width(12.dp))
-                            Text(option, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-                Divider()
-                Spacer(Modifier.height(16.dp))
-
-                SmallText("Which of the following appliances do you use regularly?")
-                Spacer(Modifier.height(8.dp))
-
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        CheckboxItem("Refrigerator")
-                        CheckboxItem("Air Conditioner")
-                        CheckboxItem("Television")
-                        CheckboxItem("Microwave")
-                    }
-                    Column(Modifier.weight(1f)) {
-                        CheckboxItem("Washing Machine")
-                        CheckboxItem("Heater")
-                        CheckboxItem("Computer")
-                        CheckboxItem("Other")
-                    }
+        // STEP 1 ---------------------------------------------------------------
+        if (step == 1) {
+            // User Information
+            item {
+                SectionCard("User Information") {
+                    OutlinedTextField(
+                        value = "",
+                        onValueChange = {},
+                        label = { SmallText("Name *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = "",
+                        onValueChange = {},
+                        label = { SmallText("Email *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    DisplayDatePicker()
                 }
             }
-        }
 
-        // Location and Utility Information
-        item {
-            SectionCard("Location and Utility Information") {
-                SmallText("Select your state:")
-                Spacer(Modifier.height(6.dp))
-                StateMenu()
-                Spacer(Modifier.height(12.dp))
-                SmallText("Electricity Provider (e.g. AGL, Origin):")
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = "",
-                    onValueChange = {},
-                    label = { SmallText("Electricity Provider") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
+            // Household Information
+            item {
+                SectionCard("Household Information") {
+                    SmallText("How many people live in your household?")
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = "",
+                        onValueChange = {},
+                        label = { SmallText("Number of people *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-        // Eco Preferences
-        item {
-            SectionCard("Eco Preferences") {
-                SmallText("Notification Preferences")
-                Spacer(Modifier.height(8.dp))
-                LabeledSwitch("Energy Tips *")
-                LabeledSwitch("Weekly Progress Summary *")
+                    Spacer(Modifier.height(16.dp))
+                    Divider()
+                    Spacer(Modifier.height(16.dp))
 
-                Spacer(Modifier.height(16.dp))
-                Divider()
-                Spacer(Modifier.height(16.dp))
+                    SmallText("Which type of home do you live in?")
+                    Spacer(Modifier.height(6.dp))
 
-                SmallText("What is your preferred motivation style? *")
-                Spacer(Modifier.height(6.dp))
+                    val homeOptions = listOf("Apartment", "Detached House", "Townhouse", "Other")
+                    var selectedHome by remember { mutableStateOf(homeOptions.first()) }
 
-                val options = listOf("Financial Savings", "Environmental Impact", "Balanced")
-                var selected by remember { mutableStateOf(options.first()) }
-
-                Column(Modifier.selectableGroup()) {
-                    options.forEach { o ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .selectable(
-                                    selected = (o == selected),
-                                    onClick = { selected = o },
-                                    role = Role.RadioButton
-                                ),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = o == selected, onClick = null)
-                            Spacer(Modifier.width(12.dp))
-                            Text(o, style = MaterialTheme.typography.bodyMedium)
+                    Column(Modifier.selectableGroup()) {
+                        homeOptions.forEach { option ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .selectable(
+                                        selected = (option == selectedHome),
+                                        onClick = { selectedHome = option },
+                                        role = Role.RadioButton
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = option == selectedHome, onClick = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text(option, style = MaterialTheme.typography.bodyMedium)
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Additional Personalisation
-        item {
-            SectionCard("Additional Personalisation") {
-                SmallText("Name for Dashboard:")
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = "",
-                    onValueChange = {},
-                    label = { SmallText("Dashboard Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(6.dp))
-                SmallText("This name will be used in various parts of the app, such as motivational messages")
-
-                Spacer(Modifier.height(16.dp))
-                SmallText("Set Profile Avatar:")
-                Spacer(Modifier.height(8.dp))
+            // Footer buttons (Step 1)
+            item {
                 Row(Modifier.fillMaxWidth()) {
-                    val btnMod = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 5.dp)
-                    Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83C\uDF33") }
-                    Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("⚡") }
-                    Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83D\uDCA7") }
-                    Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83C\uDF3F") }
-                    Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83C\uDF31") }
+                    Button(
+                        onClick = { /* no-op */ },
+                        modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        contentPadding = PaddingValues(12.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) { Text("Skip for Now") }
+                    Button(
+                        onClick = onStepNext,
+                        modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        contentPadding = PaddingValues(12.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) { Text("Next") }
                 }
             }
         }
 
-        // Footer buttons
-        item {
-            Row(Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = { /* no-op */ },
-                    modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
-                    contentPadding = PaddingValues(12.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) { Text("Skip for Now") }
-                Button(
-                    onClick = { /* no-op */ },
-                    modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
-                    contentPadding = PaddingValues(12.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) { Text("Save & Continue") }
+        // STEP 2 ---------------------------------------------------------------
+        if (step == 2) {
+            // Location and Utility Information
+            item {
+                SectionCard("Location and Utility Information") {
+                    SmallText("Select your state:")
+                    Spacer(Modifier.height(6.dp))
+                    StateMenu()
+                    Spacer(Modifier.height(12.dp))
+                    SmallText("Electricity Provider (e.g. AGL, Origin):")
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = "",
+                        onValueChange = {},
+                        label = { SmallText("Electricity Provider") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Eco Preferences
+            item {
+                SectionCard("Eco Preferences") {
+                    SmallText("Notification Preferences")
+                    Spacer(Modifier.height(8.dp))
+                    LabeledSwitch("Energy Tips *")
+                    LabeledSwitch("Weekly Progress Summary *")
+
+                    Spacer(Modifier.height(16.dp))
+                    Divider()
+                    Spacer(Modifier.height(16.dp))
+
+                    SmallText("What is your preferred motivation style? *")
+                    Spacer(Modifier.height(6.dp))
+
+                    val options = listOf("Financial Savings", "Environmental Impact", "Balanced")
+                    var selected by remember { mutableStateOf(options.first()) }
+
+                    Column(Modifier.selectableGroup()) {
+                        options.forEach { o ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .selectable(
+                                        selected = (o == selected),
+                                        onClick = { selected = o },
+                                        role = Role.RadioButton
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = o == selected, onClick = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text(o, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Additional Personalisation
+            item {
+                SectionCard("Additional Personalisation") {
+                    SmallText("Name for Dashboard:")
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = "",
+                        onValueChange = {},
+                        label = { SmallText("Dashboard Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    SmallText("This name will be used in various parts of the app, such as motivational messages")
+
+                    Spacer(Modifier.height(16.dp))
+                    SmallText("Set Profile Avatar:")
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth()) {
+                        val btnMod = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp)
+                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83C\uDF33") }
+                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("⚡") }
+                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83D\uDCA7") }
+                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83C\uDF3F") }
+                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83C\uDF31") }
+                    }
+                }
+            }
+
+            // Footer buttons (Step 2)
+            item {
+                Row(Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = onStepPrev,
+                        modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        contentPadding = PaddingValues(12.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) { Text("Back") }
+                    Button(
+                        onClick = { /* submit/save */ },
+                        modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        contentPadding = PaddingValues(12.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) { Text("Save & Continue") }
+                }
             }
         }
     }
@@ -471,12 +541,28 @@ fun StateMenu() {
     }
 }
 
-/* -------------------------------- PREVIEW ---------------------------------- */
+/* -------------------------------- PREVIEWS ---------------------------------- */
 
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true, showSystemUi = true, name = "Profile Setup – Step 1")
 @Composable
-fun ProfilePreview() {
+fun ProfilePreview_Step1() {
+    FIT5046Lab4Group3ass2Theme { ProfileScaffold() } // default starts at Step 1
+}
+
+@Preview(showBackground = true, showSystemUi = true, name = "Profile Setup – Step 2")
+@Composable
+fun ProfilePreview_Step2() {
     FIT5046Lab4Group3ass2Theme {
-        ProfileScaffold()
+        // Create a scaffold then jump to step 2 by hoisting state locally
+        var step by rememberSaveable { mutableStateOf(2) }
+        // Reuse the content directly for previewing step 2
+        Surface {
+            ProfileSetup(
+                step = step,
+                onStepPrev = { if (step > 1) step-- },
+                onStepNext = { if (step < 2) step++ },
+                onStepJump = { s -> step = s },
+            )
+        }
     }
 }
