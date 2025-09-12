@@ -6,12 +6,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -19,14 +24,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 
-/* ------------------------ Data models (demo) ------------------------ */
+/* ------------------------ Data models ------------------------ */
 
 data class Badge(
     val title: String,
@@ -49,217 +56,257 @@ data class MonthlyProgress(
     val monthlyGoal: Int
 )
 
-/* ------------------------ Screen ------------------------ */
+/* ------------------------ Scaffold (consistent chrome) ------------------------ */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AchievementsScreen(
+fun AchievementsScaffold(
     totalPoints: Int,
     electricityPoints: Int,
-    plasticPoints: Int,
     badges: List<Badge>,
     leaderboard: List<LeaderboardEntry>,
     monthly: MonthlyProgress,
     onBack: () -> Unit = {},
     onNotifications: () -> Unit = {}
 ) {
+    val navItems = listOf(
+        "Home" to Icons.Filled.Home,
+        "Appliances" to Icons.Filled.Add,
+        "EcoTrack" to Icons.Filled.Info,
+        "Reward" to Icons.Filled.Star,
+        "Profile" to Icons.Filled.AccountCircle
+    )
+
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("Rewards") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     Box {
                         IconButton(onClick = onNotifications) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                            Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                         }
-
+                        // small unread dot
                         Box(
                             modifier = Modifier
+                                .align(Alignment.TopEnd)
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF8A2BE2)) // 紫色
-                                .align(Alignment.TopEnd)
+                                .background(Color(0xFF8A2BE2))
                         )
                     }
                 }
             )
+        },
+        bottomBar = {
+            NavigationBar {
+                navItems.forEachIndexed { index, (label, icon) ->
+                    NavigationBarItem(
+                        selected = index == 3,      // Reward tab selected
+                        onClick = { /* no-op */ },
+                        icon = { Icon(icon, contentDescription = label) },
+                        label = { Text(label) }
+                    )
+                }
+            }
         }
     ) { inner ->
-        LazyColumn(
+        AchievementsContent(
+            totalPoints = totalPoints,
+            electricityPoints = electricityPoints,
+            badges = badges,
+            leaderboard = leaderboard,
+            monthly = monthly,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // EcoPoints Tracker
-            item {
-                Card(shape = RoundedCornerShape(16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("EcoPoints Tracker", style = MaterialTheme.typography.titleMedium)
-                            Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "%,d".format(totalPoints),
-                            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.SemiBold),
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            StatChip(
-                                title = "Electricity Savings",
-                                value = electricityPoints,
-                                icon = Icons.Default.Bolt,
-                                modifier = Modifier.weight(1f)
-                            )
-                            StatChip(
-                                title = "Plastic Reduction",
-                                value = plasticPoints,
-                                icon = Icons.Default.EmojiEvents,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
+                .padding(horizontal = 16.dp)
+        )
+    }
+}
 
-            // Your Badges
-            item {
-                SectionCard(
-                    title = "Your Badges",
-                    trailing = {
-                        Icon(
-                            Icons.Default.Shield,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                ) {
-                    badges.forEach { b ->
-                        ListRow(
-                            leading = {
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = CircleShape,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(
-                                        Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.EmojiEvents, contentDescription = null)
-                                    }
-                                }
-                            },
-                            headline = b.title,
-                            supporting = b.subtitle,
-                            trailing = b.date
-                        )
-                        Divider()
-                    }
-                }
-            }
+/* ------------------------ Screen content ------------------------ */
 
-            // Community Leaderboard
-            item {
-                SectionCard(
-                    title = "Community Leaderboard",
-                    trailing = {
-                        Icon(
-                            Icons.Default.EmojiEvents,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                ) {
-                    leaderboard.forEach { e ->
-                        ListRow(
-                            leading = { RankAvatar(rank = e.rank, isYou = e.isYou) },
-                            headline = if (e.isYou) "Your Rank" else e.name,
-                            supporting = "%,d points".format(e.points),
-                            trailing = if (e.isYou) null else " "
-                        )
-                        Divider()
-                    }
-
+@Composable
+private fun AchievementsContent(
+    totalPoints: Int,
+    electricityPoints: Int,
+    badges: List<Badge>,
+    leaderboard: List<LeaderboardEntry>,
+    monthly: MonthlyProgress,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // EcoPoints tracker (electricity-focused)
+        item {
+            Card(shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.padding(16.dp)) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp, horizontal = 16.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Community Average", style = MaterialTheme.typography.bodyMedium)
-                        val avg = leaderboard.map { it.points }.average().toInt()
-                        Text("%,d points".format(avg), style = MaterialTheme.typography.bodyMedium)
+                        Text("EcoPoints Tracker", style = MaterialTheme.typography.titleMedium)
+                        Icon(
+                            imageVector = Icons.Filled.EmojiEvents,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    Text(
-                        text = "You're 54% above average!",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
                     Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "%,d".format(totalPoints),
+                        style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.SemiBold),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        StatChip(
+                            title = "Electricity Points",
+                            value = electricityPoints,
+                            icon = Icons.Filled.Bolt,
+                            modifier = Modifier.weight(1f)
+                        )
+                        StatChip(
+                            title = "Badges Earned",
+                            value = monthly.badgesEarned,
+                            icon = Icons.Filled.EmojiEvents,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
+        }
 
-            // Monthly Progress
-            item {
-                SectionCard(title = "Monthly Progress", trailing = {
+        // Your Badges
+        item {
+            SectionCard(
+                title = "Your Badges",
+                trailing = {
                     Icon(
-                        Icons.Default.Shield,
+                        Icons.Filled.EmojiEvents,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }) {
-                    InfoRow("Points This Month", "%,d pts".format(monthly.pointsThisMonth))
-                    InfoRow("Badges Earned", "${monthly.badgesEarned} badges")
-                    InfoRow("Days Active", "${monthly.daysActive} / ${monthly.daysInMonth} days")
-                    Spacer(Modifier.height(8.dp))
-                    val progress = (monthly.pointsThisMonth.toFloat() / monthly.monthlyGoal)
-                        .coerceIn(0f, 1f)
-                    Text(
-                        "Monthly Goal  ${monthly.pointsThisMonth} / ${monthly.monthlyGoal}",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                }
+            ) {
+                badges.forEach { b ->
+                    ListRow(
+                        leading = {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = CircleShape,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Filled.EmojiEvents, contentDescription = null)
+                                }
+                            }
+                        },
+                        headline = b.title,
+                        supporting = b.subtitle,
+                        trailing = b.date
                     )
-                    LinearProgressIndicator(
-                        progress = progress,
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .fillMaxWidth()
-                            .height(10.dp),
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    Spacer(Modifier.height(8.dp))
+                    Divider()
                 }
             }
-
-            item { Spacer(Modifier.height(16.dp)) }
         }
+
+        // Community Leaderboard
+        item {
+            SectionCard(
+                title = "Community Leaderboard",
+                trailing = {
+                    Icon(
+                        Icons.Filled.EmojiEvents,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            ) {
+                leaderboard.forEach { e ->
+                    ListRow(
+                        leading = { RankAvatar(rank = e.rank, isYou = e.isYou) },
+                        headline = if (e.isYou) "Your Rank" else e.name,
+                        supporting = "%,d points".format(e.points),
+                        trailing = if (e.isYou) null else " "
+                    )
+                    Divider()
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp, horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Community Average", style = MaterialTheme.typography.bodyMedium)
+                    val avg = leaderboard.map { it.points }.average().toInt()
+                    Text("%,d points".format(avg), style = MaterialTheme.typography.bodyMedium)
+                }
+                Text(
+                    text = "You're 54% above average!",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+
+        // Monthly Progress
+        item {
+            SectionCard(
+                title = "Monthly Progress",
+                trailing = {
+                    Icon(
+                        Icons.Filled.EmojiEvents,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            ) {
+                InfoRow("Points This Month", "%,d pts".format(monthly.pointsThisMonth))
+                InfoRow("Badges Earned", "${monthly.badgesEarned} badges")
+                InfoRow("Days Active", "${monthly.daysActive} / ${monthly.daysInMonth} days")
+                Spacer(Modifier.height(8.dp))
+                val progress = (monthly.pointsThisMonth.toFloat() / monthly.monthlyGoal)
+                    .coerceIn(0f, 1f)
+                Text(
+                    "Monthly Goal  ${monthly.pointsThisMonth} / ${monthly.monthlyGoal}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                )
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .fillMaxWidth()
+                        .height(10.dp),
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+
+        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 
 /* ------------------------ Reusable pieces ------------------------ */
 
 @Composable
-fun InfoRow(label: String, value: String) {
+private fun InfoRow(label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -290,9 +337,7 @@ private fun SectionCard(
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 trailing?.invoke()
             }
-            Column(Modifier.padding(bottom = contentPadding)) {
-                content()
-            }
+            Column(Modifier.padding(bottom = contentPadding)) { content() }
         }
     }
 }
@@ -345,7 +390,7 @@ private fun ListRow(
 private fun StatChip(
     title: String,
     value: Int,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -375,39 +420,39 @@ private fun StatChip(
 
 @Composable
 private fun RankAvatar(rank: Int, isYou: Boolean) {
-    val bg =
-        if (isYou) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-    val fg =
-        if (isYou) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    val bg = if (isYou) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (isYou) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     Surface(shape = CircleShape, color = bg) {
         Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(Icons.Default.Person, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Person, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
                 Text("#$rank", color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
 }
 
+/* ------------------------ Previews ------------------------ */
+
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun Preview_AchievementsScreen() {
     val badges = remember {
         listOf(
-            Badge("Plastic-Free Week", "No plastic purchases for 7 days", "Jan 15"),
-            Badge("100kWh Saved", "Reduced electricity consumption", "Jan 10"),
-            Badge("CO₂ Reducer", "Prevented 50kg CO₂ emissions", "Dec 28")
+            Badge("Peak Shaver", "Avoided peak-hour usage for 7 days", "Jan 15"),
+            Badge("100 kWh Saved", "Reduced electricity consumption", "Jan 10"),
+            Badge("30-day Streak", "Consistent daily logging", "Dec 28")
         )
     }
     val leaderboard = remember {
         listOf(
             LeaderboardEntry(rank = 7, name = "Your Rank", points = 2_847, isYou = true),
-            LeaderboardEntry(rank = 1, name = "EcoWarrior_2025", points = 4_892),
+            LeaderboardEntry(rank = 1, name = "PowerSaverPro", points = 4_892),
             LeaderboardEntry(rank = 2, name = "GreenThumb_42", points = 4_156),
-            LeaderboardEntry(rank = 3, name = "PlasticFree_Hero", points = 3_924)
+            LeaderboardEntry(rank = 3, name = "WattWatcher", points = 3_924)
         )
     }
     val monthly = MonthlyProgress(
@@ -418,11 +463,10 @@ fun Preview_AchievementsScreen() {
         monthlyGoal = 1000
     )
 
-    MaterialTheme {
-        AchievementsScreen(
+    FIT5046Lab4Group3ass2Theme {
+        AchievementsScaffold(
             totalPoints = 2_847,
             electricityPoints = 1_523,
-            plasticPoints = 1_324,
             badges = badges,
             leaderboard = leaderboard,
             monthly = monthly
