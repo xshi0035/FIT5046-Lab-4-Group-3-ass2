@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.fit5046_lab4_group3_ass2"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
