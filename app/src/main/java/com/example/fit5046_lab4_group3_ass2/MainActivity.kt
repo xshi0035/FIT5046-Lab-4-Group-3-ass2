@@ -1,9 +1,5 @@
-package com.example.fit5046_lab4_group3_ass2
+package com.example.fit5046_lab4_group3_ass2.ui.screens
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,18 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 import kotlin.math.max
-
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            FIT5046Lab4Group3ass2Theme {
-                EcoTrackScaffold()
-            }
-        }
-    }
-}
 
 /* ------------------------------- SCAFFOLD ------------------------------- */
 
@@ -90,7 +74,7 @@ fun EcoTrackScaffold() {
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            EcoTrackScreen()
+            EcoTrackScreen() // uses defaults; previews below can override
         }
     }
 }
@@ -99,13 +83,17 @@ fun EcoTrackScaffold() {
 
 private enum class PriceSeverity { Normal, High, Severe }
 
+/** Parameterized so previews can tweak values easily. */
 @Composable
-fun EcoTrackScreen() {
-    // Static demo values — UI only
-    val todayKwh = 8.2f
-    val avgKwh = 12.6f
-    val rrpAudPerMwh = 132f // <— change this number to test the tiers
-
+fun EcoTrackScreen(
+    todayKwh: Float = 8.2f,
+    avgKwh: Float = 12.6f,
+    rrpAudPerMwh: Float = 132f,
+    selectedPeriodIndex: Int = 0,
+    kpiTodayText: String = "8.2",
+    kpiVsYesterdayText: String = "-12%",
+    kpiCostTodayText: String = "$2.46"
+) {
     val severity = when {
         rrpAudPerMwh > 200f -> PriceSeverity.Severe
         rrpAudPerMwh > 100f -> PriceSeverity.High
@@ -119,26 +107,23 @@ fun EcoTrackScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp)
     ) {
-        item { PeriodChips(selectedIndex = 0) }  // Daily
+        item { PeriodChips(selectedIndex = selectedPeriodIndex) }   // Daily/Weekly/Monthly
+        item { PriceHeaderCard(rrpAudPerMwh, severity) }            // Today’s price
 
-        // NEW: Prominent "Today's Price" card
-        item { PriceHeaderCard(rrpAudPerMwh, severity) }
-
-        // Optional banner only when High/Severe
         if (severity != PriceSeverity.Normal) {
-            item { PriceAlertBanner(rrpAudPerMwh, severity) }
+            item { PriceAlertBanner(rrpAudPerMwh, severity) }       // Only when High/Severe
         }
 
-        item { ChartPlaceholderCard() }          // leave empty (image holder)
+        item { ChartPlaceholderCard() }                             // image holder (UI only)
 
         item {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                KpiCard(value = "8.2", label = "Today (kWh)", modifier = Modifier.weight(1f))
-                KpiCard(value = "-12%", label = "vs Yesterday", modifier = Modifier.weight(1f))
-                KpiCard(value = "$2.46", label = "Cost Today", modifier = Modifier.weight(1f))
+                KpiCard(value = kpiTodayText,       label = "Today (kWh)",  modifier = Modifier.weight(1f))
+                KpiCard(value = kpiVsYesterdayText, label = "vs Yesterday", modifier = Modifier.weight(1f))
+                KpiCard(value = kpiCostTodayText,   label = "Cost Today",   modifier = Modifier.weight(1f))
             }
         }
 
@@ -195,8 +180,8 @@ private fun PeriodChips(selectedIndex: Int) {
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            SegChip("Daily", selectedIndex == 0, Modifier.weight(1f), sel, bg)
-            SegChip("Weekly", selectedIndex == 1, Modifier.weight(1f), sel, bg)
+            SegChip("Daily",   selectedIndex == 0, Modifier.weight(1f), sel, bg)
+            SegChip("Weekly",  selectedIndex == 1, Modifier.weight(1f), sel, bg)
             SegChip("Monthly", selectedIndex == 2, Modifier.weight(1f), sel, bg)
         }
     }
@@ -221,24 +206,18 @@ private fun SegChip(
     }
 }
 
-/** NEW: compact, prominent price card */
+/** compact “today’s price” card */
 @Composable
 private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
     val (badgeColor, badgeText, badgeIcon) = when (severity) {
         PriceSeverity.Severe -> Triple(
-            MaterialTheme.colorScheme.errorContainer,
-            "Severe",
-            Icons.Filled.Warning
+            MaterialTheme.colorScheme.errorContainer, "Severe", Icons.Filled.Warning
         )
         PriceSeverity.High -> Triple(
-            MaterialTheme.colorScheme.tertiaryContainer,
-            "High",
-            Icons.Filled.Info
+            MaterialTheme.colorScheme.tertiaryContainer, "High", Icons.Filled.Info
         )
         PriceSeverity.Normal -> Triple(
-            MaterialTheme.colorScheme.surfaceVariant,
-            "Normal",
-            Icons.Filled.Info
+            MaterialTheme.colorScheme.surfaceVariant, "Normal", Icons.Filled.Info
         )
     }
 
@@ -269,7 +248,7 @@ private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
     }
 }
 
-/** Optional banner — shown only when price is High/Severe */
+/** Optional banner — only when High/Severe */
 @Composable
 private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
     val (containerColor, title, message, icon) = when (severity) {
@@ -285,7 +264,7 @@ private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
             "Electricity prices are high (> 100 AUD/MWh). Consider reducing usage.",
             Icons.Filled.Info
         )
-        PriceSeverity.Normal -> return // do not render when normal
+        PriceSeverity.Normal -> return
     }
 
     Card(
@@ -305,7 +284,7 @@ private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
     }
 }
 
-/** Tiny helper to return 4 typed values cleanly */
+/** tiny helper to return 4 values */
 private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 @Composable
@@ -443,12 +422,50 @@ private fun ImpactLine(label: String, valueRight: String) {
     }
 }
 
-/* -------------------------------- PREVIEW -------------------------------- */
+/* -------------------------------- PREVIEWS -------------------------------- */
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun EcoTrackPreview() {
+    FIT5046Lab4Group3ass2Theme { EcoTrackScaffold() }
+}
+
+@Preview(name = "EcoTrack – Tunable", showBackground = true, showSystemUi = true)
+@Composable
+fun EcoTrackPreview_Tunable() {
+    // tweak these freely during design time
+    val today = 9.6f
+    val avg   = 12.0f
+    val rrp   = 98f          // <100 → Normal
+    val kpi1  = "9.6"
+    val kpi2  = "-8%"
+    val kpi3  = "$2.75"
+
     FIT5046Lab4Group3ass2Theme {
-        EcoTrackScaffold()
+        EcoTrackScreen(
+            todayKwh = today,
+            avgKwh = avg,
+            rrpAudPerMwh = rrp,
+            selectedPeriodIndex = 0,
+            kpiTodayText = kpi1,
+            kpiVsYesterdayText = kpi2,
+            kpiCostTodayText = kpi3
+        )
+    }
+}
+
+@Preview(name = "EcoTrack – High Price", showBackground = true, showSystemUi = true)
+@Composable
+fun EcoTrackPreview_High() {
+    FIT5046Lab4Group3ass2Theme {
+        EcoTrackScreen(rrpAudPerMwh = 150f) // shows High alert
+    }
+}
+
+@Preview(name = "EcoTrack – Severe Price", showBackground = true, showSystemUi = true)
+@Composable
+fun EcoTrackPreview_Severe() {
+    FIT5046Lab4Group3ass2Theme {
+        EcoTrackScreen(rrpAudPerMwh = 245f) // shows Severe alert
     }
 }
