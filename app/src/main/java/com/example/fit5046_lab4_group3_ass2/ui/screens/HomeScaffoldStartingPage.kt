@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.R
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 
-/* ------------------------------- DATA (UI only) ------------------------------- */
+/* ------------------------------- DATA MODELS ------------------------------- */
 
 data class HomeFeature(
     val emoji: String,
@@ -32,35 +32,32 @@ data class HomeFeature(
     val subtitle: String
 )
 
-private val features = listOf(
-    HomeFeature(
-        emoji = "⚡️",
-        title = "Save Electricity",
-        subtitle = "Monitor your appliances and reduce energy consumption"
-    ),
-    HomeFeature(
-        emoji = "♻️",
-        title = "Reduce Plastic",
-        subtitle = "Track plastic alternatives and make eco-friendly choices"
-    ),
-    HomeFeature(
-        emoji = "⭐",
-        title = "Earn EcoPoints",
-        subtitle = "Get rewarded for your sustainable actions"
+/** Everything the screen needs comes from this simple UI model. */
+data class HomeUi(
+    val title: String = "Welcome to EcoTrack",
+    val subtitle: String = "Track your environmental impact and earn rewards",
+    val features: List<HomeFeature> = listOf(
+        HomeFeature("⚡️", "Save Electricity", "Monitor your appliances and reduce energy consumption"),
+        HomeFeature("♻️", "Reduce Plastic", "Track plastic alternatives and make eco-friendly choices"),
+        HomeFeature("⭐", "Earn EcoPoints", "Get rewarded for your sustainable actions")
     )
 )
 
-/* ------------------------------- MAIN SCAFFOLD ------------------------------- */
+/* ------------------------------- SCREEN ------------------------------- */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScaffold() {
+fun HomeScaffold(
+    ui: HomeUi = HomeUi(),
+    onNotificationsClick: () -> Unit = {},
+    onGetStartedClick: () -> Unit = {}
+) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("EcoTrack") },
                 navigationIcon = {
-                    // Small circular logo — fill the circle
+                    // Small circular logo — filled with your drawable
                     Box(
                         modifier = Modifier
                             .padding(start = 8.dp)
@@ -77,28 +74,29 @@ fun HomeScaffold() {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* no-op (UI only) */ }) {
+                    IconButton(onClick = onNotificationsClick) {
                         Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                     }
                 }
             )
         }
-        // No bottomBar on the starting page
+        // no bottomBar on starting page
     ) { inner ->
         Surface(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            HomeScreen(features = features)
+            HomeScreen(ui = ui, onGetStartedClick = onGetStartedClick)
         }
     }
 }
 
-/* --------------------------------- SCREEN ---------------------------------- */
-
 @Composable
-private fun HomeScreen(features: List<HomeFeature>) {
+private fun HomeScreen(
+    ui: HomeUi,
+    onGetStartedClick: () -> Unit
+) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -133,14 +131,14 @@ private fun HomeScreen(features: List<HomeFeature>) {
         // Welcome copy
         item {
             Text(
-                "Welcome to EcoTrack",
+                ui.title,
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "Track your environmental impact and earn rewards",
+                ui.subtitle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
@@ -149,7 +147,7 @@ private fun HomeScreen(features: List<HomeFeature>) {
         }
 
         // Feature cards
-        items(features) { f ->
+        items(ui.features) { f ->
             FeatureCard(f)
             Spacer(Modifier.height(12.dp))
         }
@@ -157,7 +155,7 @@ private fun HomeScreen(features: List<HomeFeature>) {
         // Get Started button
         item {
             Button(
-                onClick = { /* no-op (prototype) */ },
+                onClick = onGetStartedClick,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -170,7 +168,7 @@ private fun HomeScreen(features: List<HomeFeature>) {
     }
 }
 
-/* ------------------------------- COMPONENTS -------------------------------- */
+/* ------------------------------- COMPONENTS ------------------------------- */
 
 @Composable
 private fun FeatureCard(f: HomeFeature) {
@@ -211,12 +209,29 @@ private fun FeatureCard(f: HomeFeature) {
     }
 }
 
-/* -------------------------------- PREVIEW ---------------------------------- */
+/* -------------------------------- PREVIEWS -------------------------------- */
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
-fun HomeScaffoldStartingPagePreview() {
+fun HomeScaffold_DefaultPreview() {
     FIT5046Lab4Group3ass2Theme {
         HomeScaffold()
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun HomeScaffold_CustomPreview() {
+    val custom = HomeUi(
+        title = "Welcome back, Alex 👋",
+        subtitle = "Pick a goal to start saving today",
+        features = listOf(
+            HomeFeature("💡", "Smart Schedules", "Auto-reduce usage at peak times"),
+            HomeFeature("📊", "Usage Insights", "See what’s driving your bill"),
+            HomeFeature("🎁", "Earn Rewards", "Redeem EcoPoints for perks")
+        )
+    )
+    FIT5046Lab4Group3ass2Theme {
+        HomeScaffold(ui = custom)
     }
 }
