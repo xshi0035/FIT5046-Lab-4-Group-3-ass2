@@ -66,7 +66,7 @@ fun AchievementsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Achievements") },
+                title = { Text("Rewards") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")

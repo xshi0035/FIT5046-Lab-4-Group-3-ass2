@@ -16,6 +16,10 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.fit5046_lab4_group3_ass2.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -30,11 +34,20 @@ import kotlin.math.max
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EcoTrackScaffold() {
+fun EcoTrackScaffold(
+    // Forward these so previews can tweak values but still keep full chrome (app bar + nav)
+    todayKwh: Float = 8.2f,
+    avgKwh: Float = 12.6f,
+    rrpAudPerMwh: Float = 132f,
+    selectedPeriodIndex: Int = 0,
+    kpiTodayText: String = "8.2",
+    kpiVsYesterdayText: String = "-12%",
+    kpiCostTodayText: String = "$2.46"
+) {
     val navItems = listOf(
         "Home" to Icons.Filled.Home,
         "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,     // renamed from "Plastic"
+        "EcoTrack" to Icons.Filled.Info,
         "Reward" to Icons.Filled.Star,
         "Profile" to Icons.Filled.AccountCircle
     )
@@ -42,7 +55,7 @@ fun EcoTrackScaffold() {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Usage Analysis") },
+                title = { Text("EcoTrack") },
                 navigationIcon = {
                     IconButton(onClick = { /* UI only */ }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -73,7 +86,15 @@ fun EcoTrackScaffold() {
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            EcoTrackScreen() // uses defaults; previews below can override
+            EcoTrackScreen(
+                todayKwh = todayKwh,
+                avgKwh = avgKwh,
+                rrpAudPerMwh = rrpAudPerMwh,
+                selectedPeriodIndex = selectedPeriodIndex,
+                kpiTodayText = kpiTodayText,
+                kpiVsYesterdayText = kpiVsYesterdayText,
+                kpiCostTodayText = kpiCostTodayText
+            )
         }
     }
 }
@@ -82,7 +103,7 @@ fun EcoTrackScaffold() {
 
 private enum class PriceSeverity { Normal, High, Severe }
 
-/** Parameterized so previews can tweak values easily. */
+/** Parameterized so previews (and Scaffold) can pass values. */
 @Composable
 fun EcoTrackScreen(
     todayKwh: Float = 8.2f,
@@ -106,14 +127,14 @@ fun EcoTrackScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp)
     ) {
-        item { PeriodChips(selectedIndex = selectedPeriodIndex) }   // Daily/Weekly/Monthly
-        item { PriceHeaderCard(rrpAudPerMwh, severity) }            // Today’s price
+        item { PeriodChips(selectedIndex = selectedPeriodIndex) }
+        item { PriceHeaderCard(rrpAudPerMwh, severity) }
 
         if (severity != PriceSeverity.Normal) {
-            item { PriceAlertBanner(rrpAudPerMwh, severity) }       // Only when High/Severe
+            item { PriceAlertBanner(rrpAudPerMwh, severity) }
         }
 
-        item { ChartPlaceholderCard() }                             // image holder (UI only)
+        item { ChartPlaceholderCard() }
 
         item {
             Row(
@@ -289,19 +310,16 @@ private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 @Composable
 private fun ChartPlaceholderCard() {
     Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(180.dp)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Daily Usage Chart", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                "kWh consumption over time",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            Image(
+                painter = painterResource(id = R.drawable.line_chart_image),
+                contentDescription = "Daily usage chart",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop  // or ContentScale.Fit if you prefer no cropping
             )
         }
     }
@@ -426,29 +444,24 @@ private fun ImpactLine(label: String, valueRight: String) {
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun EcoTrackPreview() {
-    FIT5046Lab4Group3ass2Theme { EcoTrackScaffold() }
+    FIT5046Lab4Group3ass2Theme {
+        EcoTrackScaffold()
+    }
 }
 
 @Preview(name = "EcoTrack – Tunable", showBackground = true, showSystemUi = true)
 @Composable
 fun EcoTrackPreview_Tunable() {
-    // tweak these freely during design time
-    val today = 9.6f
-    val avg   = 12.0f
-    val rrp   = 98f          // <100 → Normal
-    val kpi1  = "9.6"
-    val kpi2  = "-8%"
-    val kpi3  = "$2.75"
-
+    // 19/01/2019 dataset - Daily Electricity Price and Demand Data
     FIT5046Lab4Group3ass2Theme {
-        EcoTrackScreen(
-            todayKwh = today,
-            avgKwh = avg,
-            rrpAudPerMwh = rrp,
+        EcoTrackScaffold(
+            todayKwh = 9.6f,
+            avgKwh = 12.0f,
+            rrpAudPerMwh = 80f,         // Normal tier
             selectedPeriodIndex = 0,
-            kpiTodayText = kpi1,
-            kpiVsYesterdayText = kpi2,
-            kpiCostTodayText = kpi3
+            kpiTodayText = "9.6",
+            kpiVsYesterdayText = "-8%",
+            kpiCostTodayText = "$2.75"
         )
     }
 }
@@ -457,7 +470,8 @@ fun EcoTrackPreview_Tunable() {
 @Composable
 fun EcoTrackPreview_High() {
     FIT5046Lab4Group3ass2Theme {
-        EcoTrackScreen(rrpAudPerMwh = 150f) // shows High alert
+        // 23/01/2019 dataset - Daily Electricity Price and Demand Data
+        EcoTrackScaffold(rrpAudPerMwh = 154f) // shows High alert
     }
 }
 
@@ -465,6 +479,7 @@ fun EcoTrackPreview_High() {
 @Composable
 fun EcoTrackPreview_Severe() {
     FIT5046Lab4Group3ass2Theme {
-        EcoTrackScreen(rrpAudPerMwh = 245f) // shows Severe alert
+        // 15/01/2019 dataset - Daily Electricity Price and Demand Data
+        EcoTrackScaffold(rrpAudPerMwh = 222f) // shows Severe alert
     }
 }
