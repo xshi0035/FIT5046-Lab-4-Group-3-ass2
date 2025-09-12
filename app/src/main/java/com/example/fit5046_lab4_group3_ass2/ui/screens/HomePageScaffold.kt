@@ -26,11 +26,10 @@ import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomePageScaffold() {
-    // System icons only (placeholders where needed)
     val navItems = listOf(
         NavItem("Home", Icons.Filled.Home),
-        NavItem("Appliances", Icons.Filled.Add),   // placeholder
-        NavItem("Plastic", Icons.Filled.Info),     // placeholder (leave as-is)
+        NavItem("Appliances", Icons.Filled.Add),
+        NavItem("Plastic", Icons.Filled.Info),
         NavItem("Rewards", Icons.Filled.Star),
         NavItem("Profile", Icons.Filled.AccountCircle),
     )
@@ -47,9 +46,7 @@ fun HomePageScaffold() {
                             .padding(start = 8.dp)
                             .size(32.dp)
                             .clip(CircleShape)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) { Text("←") }
-                    }
+                    ) { Box(contentAlignment = Alignment.Center) { Text("←") } }
                 },
                 actions = {
                     Surface(
@@ -59,9 +56,7 @@ fun HomePageScaffold() {
                             .padding(end = 12.dp)
                             .size(28.dp)
                             .clip(CircleShape)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) { Text("⋮") }
-                    }
+                    ) { Box(contentAlignment = Alignment.Center) { Text("⋮") } }
                 }
             )
         },
@@ -69,7 +64,7 @@ fun HomePageScaffold() {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 navItems.forEachIndexed { index, item ->
                     NavigationBarItem(
-                        selected = index == 0,   // Home selected (UI-only)
+                        selected = index == 0,
                         onClick = { /* no-op */ },
                         icon = { Icon(item.icon, contentDescription = item.label) },
                         label = { Text(item.label) }
@@ -82,9 +77,7 @@ fun HomePageScaffold() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
-        ) {
-            Home()
-        }
+        ) { Home() }
     }
 }
 
@@ -104,11 +97,11 @@ private fun HomeScreenCard(
     Card(modifier = modifier.padding(bottom = 10.dp)) {
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            if (title.isNotEmpty()) BoldText(text = title)
-            if (rightText.isNotEmpty()) SmallText(text = rightText)
+            if (title.isNotEmpty()) HomeBoldText(title)
+            if (rightText.isNotEmpty()) HomeSmallText(rightText)
         }
-        if (mainText.isNotEmpty()) BoldText(text = mainText)
-        if (smallText.isNotEmpty()) SmallText(text = smallText)
+        if (mainText.isNotEmpty()) HomeBoldText(mainText)
+        if (smallText.isNotEmpty()) HomeSmallText(smallText)
 
         if (progress != 0f) {
             LinearProgressIndicator(
@@ -126,8 +119,9 @@ private fun HomeScreenCard(
     }
 }
 
+/* renamed to avoid clashing with other files’ helpers */
 @Composable
-private fun BoldText(text: String) {
+private fun HomeBoldText(text: String) {
     Text(
         text = text,
         modifier = Modifier.padding(horizontal = 10.dp),
@@ -135,8 +129,9 @@ private fun BoldText(text: String) {
     )
 }
 
+/* renamed to avoid clashing with other files’ helpers */
 @Composable
-private fun SmallText(text: String) {
+private fun HomeSmallText(text: String) {
     Text(
         text = text,
         modifier = Modifier.padding(horizontal = 10.dp),
@@ -192,7 +187,7 @@ private fun Home() {
                     rightText = "+2.1kg"
                 )
 
-                BoldText(text = "Quick Actions")
+                HomeBoldText("Quick Actions")
                 Spacer(Modifier.height(10.dp))
 
                 Row(Modifier.fillMaxWidth()) {
@@ -248,7 +243,7 @@ private fun Home() {
                 }
 
                 Spacer(Modifier.height(10.dp))
-                BoldText(text = "Recent Activity")
+                HomeBoldText("Recent Activity")
 
                 HomeScreenCard(
                     title = "♻️ Plastic bottle avoided",
@@ -270,7 +265,7 @@ private fun Home() {
                 )
 
                 Spacer(Modifier.height(10.dp))
-                BoldText(text = "Information")
+                HomeBoldText("Information")
                 HomeScreenCard(
                     title = "\uD83D\uDCA1 Today's Eco Tip",
                     mainText = "",
