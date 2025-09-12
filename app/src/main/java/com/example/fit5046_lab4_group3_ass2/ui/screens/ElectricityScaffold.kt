@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Star
@@ -32,9 +31,9 @@ import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 data class Appliance(
     val iconEmoji: String,
     val name: String,
-    val spec: String,      // e.g., "150W • 6h daily"
-    val costPerDay: String,// e.g., "$0.27/day"
-    val kwh: String        // e.g., "0.9 kWh"
+    val spec: String,       // e.g., "150W • 6h daily"
+    val costPerDay: String, // e.g., "$0.27/day"
+    val kwh: String         // e.g., "0.9 kWh"
 )
 
 data class Suggestion(
@@ -67,13 +66,13 @@ private val demoSuggestions = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ElectricityScaffold() {
-    // System icons only (placeholders where needed)
-    val navItems = listOf(
-        NavItem("Home", Icons.Filled.Home),
-        NavItem("Appliances", Icons.Filled.Add),    // placeholder icon
-        NavItem("EcoTrack", Icons.Filled.Info),     // renamed from Plastic → EcoTrack
-        NavItem("Rewards", Icons.Filled.Star),
-        NavItem("Profile", Icons.Filled.AccountCircle),
+    // Use public types only to avoid Kotlin visibility diagnostics
+    val navItems: List<Pair<String, ImageVector>> = listOf(
+        "Home" to Icons.Filled.Home,
+        "Appliances" to Icons.Filled.Add,     // placeholder icon
+        "EcoTrack" to Icons.Filled.Info,      // renamed from Plastic → EcoTrack
+        "Rewards" to Icons.Filled.Star,
+        "Profile" to Icons.Filled.AccountCircle,
     )
 
     Scaffold(
@@ -104,12 +103,12 @@ fun ElectricityScaffold() {
         },
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                navItems.forEachIndexed { index, item ->
+                navItems.forEachIndexed { index, (label, icon) ->
                     NavigationBarItem(
                         selected = index == 1, // Appliances selected (UI-only)
                         onClick = { /* no-op */ },
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) }
+                        icon = { Icon(icon, contentDescription = label) },
+                        label = { Text(label) }
                     )
                 }
             }
@@ -377,8 +376,6 @@ private fun ActionCard(modifier: Modifier = Modifier, label: String) {
         }
     }
 }
-
-private data class NavItem(val label: String, val icon: ImageVector)
 
 /* -------------------------------- PREVIEW ---------------------------------- */
 
