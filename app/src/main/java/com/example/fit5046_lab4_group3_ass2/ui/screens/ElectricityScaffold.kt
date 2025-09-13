@@ -7,10 +7,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -18,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,11 +69,11 @@ private val demoSuggestions = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ElectricityScaffold() {
-    // Use public types only to avoid Kotlin visibility diagnostics
+    // Public types only (keep consistent with other screens)
     val navItems: List<Pair<String, ImageVector>> = listOf(
         "Home" to Icons.Filled.Home,
-        "Appliances" to Icons.Filled.Add,     // placeholder icon
-        "EcoTrack" to Icons.Filled.Info,      // renamed from Plastic → EcoTrack
+        "Appliances" to Icons.Filled.Add,
+        "EcoTrack" to Icons.Filled.Info,
         "Rewards" to Icons.Filled.Star,
         "Profile" to Icons.Filled.AccountCircle,
     )
@@ -80,24 +83,24 @@ fun ElectricityScaffold() {
             CenterAlignedTopAppBar(
                 title = { Text("Appliances") },
                 navigationIcon = {
-                    Box(
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) { Text("←") }
+                    IconButton(onClick = { /* UI-only back */ }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
                 },
                 actions = {
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 12.dp)
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) { Text("⋮") }
+                    // Bell + tiny unread dot (same pattern as Rewards)
+                    Box {
+                        IconButton(onClick = { /* UI only */ }) {
+                            Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF8A2BE2))
+                        )
+                    }
                 }
             )
         },
@@ -151,11 +154,9 @@ fun ElectricityScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 96.dp)
+        contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
     ) {
-        item { Spacer(Modifier.height(8.dp)) }
-
-        // Today's Usage card (colorful)
+        // "Today's Usage" — card title & supporting follow app typography rules
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -167,6 +168,7 @@ fun ElectricityScreen(
                 Column(Modifier.padding(16.dp)) {
                     Text(
                         "Today's Usage",
+                        style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Spacer(Modifier.height(6.dp))
@@ -174,7 +176,7 @@ fun ElectricityScreen(
                         Text(
                             usageKwh,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
                             modifier = Modifier.weight(1f)
                         )
                         ChangePill(changePercent)
@@ -182,17 +184,19 @@ fun ElectricityScreen(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         costEstimate,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                     )
                     Text(
                         co2,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                     )
                 }
             }
         }
 
-        // My Appliances header
+        // My Appliances header (titleMedium like other section headers)
         item {
             Row(
                 modifier = Modifier
@@ -201,22 +205,26 @@ fun ElectricityScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("My Appliances", fontWeight = FontWeight.SemiBold)
-                Text("View Usage", color = MaterialTheme.colorScheme.primary)
+                Text("My Appliances", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "View Usage",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
 
         // Appliance list
         items(appliances) { appliance ->
             ApplianceCard(appliance)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
         }
 
         // Smart Suggestions header
         item {
             Text(
                 "Smart Suggestions",
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
             )
         }
@@ -224,20 +232,7 @@ fun ElectricityScreen(
         // Suggestions list
         items(suggestions) { tip ->
             SuggestionCard(tip)
-            Spacer(Modifier.height(10.dp))
-        }
-
-        // Bottom actions
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                ActionCard(modifier = Modifier.weight(1f), label = "Usage Graph")
-                ActionCard(modifier = Modifier.weight(1f), label = "Cost Calculator")
-            }
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
@@ -252,13 +247,16 @@ private fun ChangePill(text: String) {
     val fg = if (isDown) MaterialTheme.colorScheme.onTertiaryContainer
     else MaterialTheme.colorScheme.onErrorContainer
 
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+    Surface(
+        color = bg,
+        shape = RoundedCornerShape(999.dp)
     ) {
-        Text(text, fontSize = 12.sp, color = fg)
+        Text(
+            text,
+            fontSize = 12.sp,
+            color = fg,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
     }
 }
 
@@ -287,7 +285,7 @@ private fun ApplianceCard(appliance: Appliance) {
                     Text(
                         appliance.spec,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -302,7 +300,7 @@ private fun ApplianceCard(appliance: Appliance) {
                     Text(
                         appliance.kwh,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
@@ -349,7 +347,8 @@ private fun SuggestionCard(suggestion: Suggestion) {
                 Text(
                     suggestion.body,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f),
-                    lineHeight = 18.sp
+                    lineHeight = 18.sp,
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
