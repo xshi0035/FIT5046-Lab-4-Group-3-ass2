@@ -1,5 +1,6 @@
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,23 +11,23 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
-import androidx.compose.foundation.Image
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import com.example.fit5046_lab4_group3_ass2.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fit5046_lab4_group3_ass2.R
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 import kotlin.math.max
 
@@ -35,7 +36,7 @@ import kotlin.math.max
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EcoTrackScaffold(
-    // Forward these so previews can tweak values but still keep full chrome (app bar + nav)
+    // Forward these so previews can tweak values but still show full chrome
     todayKwh: Float = 8.2f,
     avgKwh: Float = 12.6f,
     rrpAudPerMwh: Float = 132f,
@@ -44,11 +45,11 @@ fun EcoTrackScaffold(
     kpiVsYesterdayText: String = "-12%",
     kpiCostTodayText: String = "$2.46"
 ) {
-    val navItems = listOf(
+    val navItems: List<Pair<String, ImageVector>> = listOf(
         "Home" to Icons.Filled.Home,
         "Appliances" to Icons.Filled.Add,
         "EcoTrack" to Icons.Filled.Info,
-        "Reward" to Icons.Filled.Star,
+        "Rewards" to Icons.Filled.Star,   // <- plural for consistency
         "Profile" to Icons.Filled.AccountCircle
     )
 
@@ -62,8 +63,17 @@ fun EcoTrackScaffold(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* UI only */ }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                    // Use the same bell-with-dot pattern as Rewards screen
+                    Box {
+                        IconButton(onClick = { /* UI only */ }) {
+                            Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(10.dp)
+                                .background(Color(0xFF8A2BE2), shape = RoundedCornerShape(50))
+                        )
                     }
                 }
             )
@@ -158,7 +168,8 @@ fun EcoTrackScreen(
             )
         }
 
-        item { Text("Environmental Impact", fontWeight = FontWeight.SemiBold) }
+        // Section header style aligned with Achievements (titleMedium)
+        item { Text("Environmental Impact", style = MaterialTheme.typography.titleMedium) }
 
         item {
             Row(
@@ -319,7 +330,7 @@ private fun ChartPlaceholderCard() {
                 painter = painterResource(id = R.drawable.line_chart_image),
                 contentDescription = "Daily usage chart",
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop  // or ContentScale.Fit if you prefer no cropping
+                contentScale = ContentScale.Crop // change to Fit if you prefer no cropping
             )
         }
     }
@@ -352,7 +363,7 @@ private fun UsageVsAverageCard(
 ) {
     Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Your Usage vs Average", fontWeight = FontWeight.SemiBold)
+            Text("Your Usage vs Average", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
 
             val base = max(yourValue, avgValue).coerceAtLeast(0.0001f)
