@@ -9,6 +9,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,42 +34,42 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScaffold() {
+fun ProfileScaffold(startStep: Int = 1) {
     // 1..2
-    var step by rememberSaveable { mutableStateOf(1) }
+    var step by rememberSaveable { mutableStateOf(startStep.coerceIn(1, 2)) }
 
-    // Use Pair<String, ImageVector> to avoid private type issues
+    // Public pairs to avoid private-type lint errors
     val navItems: List<Pair<String, ImageVector>> = listOf(
         "Home" to Icons.Filled.Home,
         "Appliances" to Icons.Filled.Add,
         "EcoTrack" to Icons.Filled.Info,
-        "Rewards" to Icons.Filled.Star,
+        "Rewards" to Icons.Filled.Star,      // plural for consistency across app
         "Profile" to Icons.Filled.AccountCircle,
     )
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Set up Profile") },
+                title = { Text("Set Up Profile") },
                 navigationIcon = {
-                    Surface(
-                        shape = CircleShape,
-                        tonalElevation = 1.dp,
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .size(32.dp)
-                            .clip(CircleShape)
-                    ) { Box(contentAlignment = Alignment.Center) { Text("←") } }
+                    IconButton(onClick = { /* UI only */ }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
                 },
                 actions = {
-                    Surface(
-                        shape = CircleShape,
-                        tonalElevation = 1.dp,
-                        modifier = Modifier
-                            .padding(end = 12.dp)
-                            .size(28.dp)
-                            .clip(CircleShape)
-                    ) { Box(contentAlignment = Alignment.Center) { Text("⋮") } }
+                    // Notifications bell with unread dot (same pattern as Home/Rewards)
+                    Box {
+                        IconButton(onClick = { /* UI only */ }) {
+                            Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF8A2BE2))
+                        )
+                    }
                 }
             )
         },
@@ -77,7 +78,7 @@ fun ProfileScaffold() {
                 navItems.forEachIndexed { index, (label, icon) ->
                     NavigationBarItem(
                         selected = index == 4,  // Profile selected (UI-only)
-                        onClick = { /* no-op */ },
+                        onClick = { /* UI only */ },
                         icon = { Icon(icon, contentDescription = label) },
                         label = { Text(label) }
                     )
@@ -123,15 +124,15 @@ private fun SectionCard(
 }
 
 @Composable
-fun SmallText(text: String) {
+private fun SmallText(text: String) {
     Text(
         text = text,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodyMedium
+        style = MaterialTheme.typography.bodySmall
     )
 }
 
-/** Step chips + progress bar (consistent “segmented” look used in the app) */
+/** Step chips + progress bar (segmented look used elsewhere) */
 @Composable
 private fun SetupProgress(
     step: Int,           // 1..2
@@ -158,9 +159,9 @@ private fun SetupProgress(
             }
         }
         Spacer(Modifier.height(10.dp))
-        // Linear progress
+        // Linear progress (lambda form for consistency with other screens)
         LinearProgressIndicator(
-            progress = step / total.toFloat(),
+            progress = { step / total.toFloat() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp),
@@ -217,11 +218,7 @@ fun ProfileSetup(
 
         // Small helper text
         item {
-            Text(
-                "* means the field is required to be filled in.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            SmallText("* means the field is required to be filled in.")
         }
 
         // STEP 1 ---------------------------------------------------------------
@@ -295,14 +292,18 @@ fun ProfileSetup(
             item {
                 Row(Modifier.fillMaxWidth()) {
                     Button(
-                        onClick = { /* no-op */ },
-                        modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        onClick = { /* UI only */ },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp),
                         contentPadding = PaddingValues(12.dp),
                         shape = RoundedCornerShape(16.dp)
                     ) { Text("Skip for Now") }
                     Button(
                         onClick = onStepNext,
-                        modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp),
                         contentPadding = PaddingValues(12.dp),
                         shape = RoundedCornerShape(16.dp)
                     ) { Text("Next") }
@@ -405,13 +406,17 @@ fun ProfileSetup(
                 Row(Modifier.fillMaxWidth()) {
                     Button(
                         onClick = onStepPrev,
-                        modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp),
                         contentPadding = PaddingValues(12.dp),
                         shape = RoundedCornerShape(16.dp)
                     ) { Text("Back") }
                     Button(
                         onClick = { /* submit/save */ },
-                        modifier = Modifier.weight(1f).padding(horizontal = 5.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 5.dp),
                         contentPadding = PaddingValues(12.dp),
                         shape = RoundedCornerShape(16.dp)
                     ) { Text("Save & Continue") }
@@ -433,7 +438,7 @@ fun CheckboxItem(name: String) {
     }
 }
 
-/** renamed from `Switch` to avoid shadowing Material3.Switch */
+/** renamed to avoid shadowing Material3.Switch */
 @Composable
 fun LabeledSwitch(name: String) {
     var checked by remember { mutableStateOf(true) }
@@ -546,23 +551,11 @@ fun StateMenu() {
 @Preview(showBackground = true, showSystemUi = true, name = "Profile Setup – Step 1")
 @Composable
 fun ProfilePreview_Step1() {
-    FIT5046Lab4Group3ass2Theme { ProfileScaffold() } // default starts at Step 1
+    FIT5046Lab4Group3ass2Theme { ProfileScaffold(startStep = 1) }
 }
 
 @Preview(showBackground = true, showSystemUi = true, name = "Profile Setup – Step 2")
 @Composable
 fun ProfilePreview_Step2() {
-    FIT5046Lab4Group3ass2Theme {
-        // Create a scaffold then jump to step 2 by hoisting state locally
-        var step by rememberSaveable { mutableStateOf(2) }
-        // Reuse the content directly for previewing step 2
-        Surface {
-            ProfileSetup(
-                step = step,
-                onStepPrev = { if (step > 1) step-- },
-                onStepNext = { if (step < 2) step++ },
-                onStepJump = { s -> step = s },
-            )
-        }
-    }
+    FIT5046Lab4Group3ass2Theme { ProfileScaffold(startStep = 2) }
 }

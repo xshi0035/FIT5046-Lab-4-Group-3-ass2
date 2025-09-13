@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -54,7 +53,7 @@ fun ProfileScreen(
 
     // Actions
     onBack: () -> Unit = {},
-    onMenu: () -> Unit = {},
+    onNotifications: () -> Unit = {},
     onEditProfile: () -> Unit = {},
     onToggleElectricity: (Boolean) -> Unit = {},
     onTapTheme: () -> Unit = {},
@@ -71,7 +70,7 @@ fun ProfileScreen(
         "Home" to Icons.Filled.Home,
         "Appliances" to Icons.Filled.Add,
         "EcoTrack" to Icons.Filled.Info,
-        "Reward" to Icons.Filled.Star,
+        "Rewards" to Icons.Filled.Star,   // plural for consistency
         "Profile" to Icons.Filled.AccountCircle
     )
 
@@ -85,8 +84,18 @@ fun ProfileScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onMenu) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
+                    // Bell + unread dot (same pattern as Achievements/Home)
+                    Box {
+                        IconButton(onClick = onNotifications) {
+                            Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF8A2BE2))
+                        )
                     }
                 }
             )
@@ -96,7 +105,7 @@ fun ProfileScreen(
                 navItems.forEachIndexed { index, (label, icon) ->
                     NavigationBarItem(
                         selected = index == 4,     // Profile selected
-                        onClick = { /* no-op */ },
+                        onClick = { /* UI only */ },
                         icon = { Icon(icon, contentDescription = label) },
                         label = { Text(label) }
                     )
@@ -190,7 +199,7 @@ private fun ProfileContent(
             }
         }
 
-        // Household Details
+        // Household Details (tonal like other summary sections)
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -278,7 +287,7 @@ private fun ProfileContent(
 
 @Composable
 private fun AvatarPlaceholder(avatarUrl: String?, size: Dp = 56.dp) {
-    // Keeping simple placeholder (no image loading in this UI-only build)
+    // UI-only placeholder (no image loading)
     Box(
         modifier = Modifier
             .size(size)
@@ -376,7 +385,7 @@ fun Preview_Profile_Filled() {
 fun Preview_Profile_Empty() {
     var electricity by remember { mutableStateOf(false) }
     FIT5046Lab4Group3ass2Theme {
-        // Empty name + email + household/location to show the "Set Up Profile" state
+        // Empty name/email shows the “Set Up Profile” CTA and dashes in details
         ProfileScreen(
             name = "",
             email = "",
