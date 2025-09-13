@@ -174,7 +174,7 @@ private fun AddApplianceContent(
 
                 Spacer(Modifier.height(8.dp))
 
-                // Wrap chips → no clipping on small screens
+
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -232,7 +232,7 @@ private fun AddApplianceContent(
             }
         }
 
-        // Estimation (UI-only)
+        // Estimation
         item { EstimateCard(watt = watt, hours = hours) }
 
         // Actions
@@ -305,7 +305,7 @@ private fun HoursSlider(
 @Composable
 private fun EstimateCard(watt: Int, hours: Float) {
     val kWh = (watt * hours / 1000f).coerceAtLeast(0f)
-    val cost = kWh * 0.30f // illustrative only
+    val cost = kWh * 0.30f
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(12.dp)
