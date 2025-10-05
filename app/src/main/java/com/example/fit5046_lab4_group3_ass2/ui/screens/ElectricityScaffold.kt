@@ -16,6 +16,10 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,7 +72,7 @@ private val demoSuggestions = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ElectricityScaffold() {
+fun ElectricityScaffold(navController: NavController) {
     // Public types only (keep consistent with other screens)
     val navItems: List<Pair<String, ImageVector>> = listOf(
         "Home" to Icons.Filled.Home,
@@ -106,12 +110,22 @@ fun ElectricityScaffold() {
         },
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                navItems.forEachIndexed { index, (label, icon) ->
+                val backStackEntry = navController.currentBackStackEntryAsState()
+                val currentRoute = backStackEntry.value?.destination?.route
+                val items = bottomNavItems()
+                items.forEach { item ->
                     NavigationBarItem(
-                        selected = index == 1, // Appliances selected (UI-only)
-                        onClick = { /* no-op */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
+                        selected = currentRoute == item.route,
+                        onClick = {
+                            if (currentRoute == item.route) return@NavigationBarItem
+                            navController.navigate(item.route) {
+                                popUpTo(NavRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) }
                     )
                 }
             }
@@ -382,6 +396,6 @@ private fun ActionCard(modifier: Modifier = Modifier, label: String) {
 @Composable
 fun ElectricityPreview() {
     FIT5046Lab4Group3ass2Theme {
-        ElectricityScaffold()
+        ElectricityScaffold(rememberNavController())
     }
 }

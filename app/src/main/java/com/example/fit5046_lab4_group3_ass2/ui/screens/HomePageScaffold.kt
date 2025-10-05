@@ -1,50 +1,46 @@
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Comment
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
-
-/* ------------------------------- SCAFFOLD ---------------------------------- */
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.fit5046_lab4_group3_ass2.data.ApplianceEntity
+import com.example.fit5046_lab4_group3_ass2.viewmodel.HomeViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomePageScaffold() {
-    // Keep nav consistent across the app
-    val navItems = listOf(
-        NavItem("Home",       Icons.Filled.Home),
-        NavItem("Appliances", Icons.Filled.Add),
-        NavItem("EcoTrack",   Icons.Filled.Info),
-        NavItem("Rewards",    Icons.Filled.Star),
-        NavItem("Profile",    Icons.Filled.AccountCircle),
-    )
+fun HomePageScaffold(
+    navController: NavController,
+    viewModel: HomeViewModel
+) {
+    val appliances by viewModel.allAppliances.collectAsState(initial = emptyList())
+    val items = bottomNavItems()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Home") }, // sentence case like other screens
+                title = { Text("Home") },
                 navigationIcon = {
                     Surface(
                         shape = CircleShape,
@@ -55,34 +51,24 @@ fun HomePageScaffold() {
                             .clip(CircleShape)
                     ) { Box(contentAlignment = Alignment.Center) { Text("←") } }
                 },
-                actions = {
-                    // Bell with a small unread dot (same pattern as Rewards)
-                    Box {
-                        IconButton(onClick = { /* UI only */ }) {
-                            Icon(
-                                imageVector = Icons.Filled.Notifications,
-                                contentDescription = "Notifications"
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF8A2BE2))
-                        )
-                    }
-                }
+                actions = { /* notification icon already present in your design – omitted for brevity */ }
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                navItems.forEachIndexed { index, item ->
+            NavigationBar {
+                items.forEachIndexed { index, item ->
                     NavigationBarItem(
-                        selected = index == 0, // Home selected (UI-only)
-                        onClick = { /* UI only */ },
-                        icon   = { Icon(item.icon, contentDescription = item.label) },
-                        label  = { Text(item.label) }
+                        selected = currentRoute == item.route,
+                        onClick = {
+                            if (currentRoute == item.route) return@NavigationBarItem
+                            navController.navigate(item.route) {
+                                popUpTo(NavRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) }
                     )
                 }
             }
@@ -93,20 +79,33 @@ fun HomePageScaffold() {
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            Home() // UI-only content
+            Home(
+                appliances = appliances,
+                onAddAppliance = { navController.navigate(NavRoutes.ADD_APPLIANCE) },
+                onOpenEcoTrack = { navController.navigate(NavRoutes.ECOTRACK) },
+                onViewRewards = { navController.navigate(NavRoutes.REWARDS) }
+            )
+        }
+    }
+
+    // Show snackbar when coming back from Add Appliance
+    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+    val applianceAdded: Boolean? = savedStateHandle?.get<Boolean>("appliance_added")
+    if (applianceAdded == true) {
+        LaunchedEffect(Unit) {
+            snackbarHostState.showSnackbar("Appliance saved")
+            savedStateHandle?.remove<Boolean>("appliance_added")
         }
     }
 }
 
-/* --------------------------------- SCREEN ---------------------------------- */
-
-private data class NavItem(val label: String, val icon: ImageVector)
+/* ----------------------------- CONTENT BELOW ------------------------------ */
 
 @Composable
 private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        style = MaterialTheme.typography.titleMedium, // matches Achievements
+        style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface,
         modifier = modifier.padding(top = 12.dp, bottom = 8.dp)
     )
@@ -121,7 +120,7 @@ private fun HomeScreenCard(
     progress: Float = 0f,
     rightText: String,
     tonal: Boolean = false,
-    valueStyle: TextStyle = MaterialTheme.typography.titleMedium // override for big numbers
+    valueStyle: TextStyle = MaterialTheme.typography.titleMedium
 ) {
     val colors = if (tonal)
         CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -132,10 +131,11 @@ private fun HomeScreenCard(
         colors = colors,
         modifier = modifier.padding(bottom = 12.dp)
     ) {
-        Column(Modifier
-            .fillMaxWidth()
-            .padding(12.dp)) {
-
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -144,7 +144,7 @@ private fun HomeScreenCard(
                 if (title.isNotEmpty()) {
                     Text(
                         title,
-                        style = MaterialTheme.typography.titleSmall, // card titles
+                        style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -152,7 +152,7 @@ private fun HomeScreenCard(
                 if (rightText.isNotEmpty()) {
                     Text(
                         rightText,
-                        style = MaterialTheme.typography.bodySmall, // secondary, muted
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -161,7 +161,7 @@ private fun HomeScreenCard(
             if (mainText.isNotEmpty()) {
                 Text(
                     text = mainText,
-                    style = valueStyle,  // <- controlled from call site
+                    style = valueStyle,
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
@@ -169,7 +169,7 @@ private fun HomeScreenCard(
             if (smallText.isNotEmpty()) {
                 Text(
                     smallText,
-                    style = MaterialTheme.typography.bodySmall, // supporting
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp)
                 )
@@ -192,13 +192,13 @@ private fun HomeScreenCard(
 
 @Composable
 private fun QuickActionButton(
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
-    // Filled tonal for contrast + unified label size (like other screens)
     FilledTonalButton(
-        onClick = { /* UI only */ },
+        onClick = onClick,
         modifier = modifier.height(68.dp),
         shape = RoundedCornerShape(20.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
@@ -217,10 +217,15 @@ private fun QuickActionButton(
 }
 
 @Composable
-private fun Home() {
+private fun Home(
+    appliances: List<ApplianceEntity>,
+    onAddAppliance: () -> Unit,
+    onOpenEcoTrack: () -> Unit,
+    onViewRewards: () -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp)
     ) {
         item {
             Column(Modifier.fillMaxWidth()) {
@@ -240,14 +245,13 @@ private fun Home() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                // Tonal summary cards (match Achievements spacing/typography)
                 HomeScreenCard(
                     title = "EcoPoints",
                     mainText = "2,450",
                     smallText = "🔥 7-day streak",
                     rightText = "\uD83C\uDFC6",
                     tonal = true,
-                    valueStyle = MaterialTheme.typography.displaySmall // big number like Rewards
+                    valueStyle = MaterialTheme.typography.displaySmall
                 )
                 HomeScreenCard(
                     title = "⚡ Electricity",
@@ -265,12 +269,14 @@ private fun Home() {
                     QuickActionButton(
                         icon = Icons.Filled.Add,
                         label = "Add Appliance",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onAddAppliance
                     )
                     QuickActionButton(
                         icon = Icons.Filled.Info,
                         label = "Open EcoTrack",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenEcoTrack
                     )
                 }
 
@@ -278,20 +284,15 @@ private fun Home() {
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     QuickActionButton(
-                        icon = Icons.Filled.Comment,
-                        label = "View Tips",
-                        modifier = Modifier.weight(1f)
-                    )
-                    QuickActionButton(
                         icon = Icons.Filled.Star,
                         label = "View Rewards",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onViewRewards
                     )
                 }
 
                 SectionTitle("Recent Activity")
 
-                // Recent (electricity-focused)
                 HomeScreenCard(
                     title = "⚡ Usage goal met",
                     mainText = "",
@@ -320,15 +321,31 @@ private fun Home() {
                 )
             }
         }
+
+        if (appliances.isNotEmpty()) {
+            item { SectionTitle("Your Appliances") }
+            items(appliances) { appliance ->
+                ApplianceCard(appliance)
+            }
+        }
     }
 }
 
-/* -------------------------------- PREVIEW ---------------------------------- */
-
-@Preview(showBackground = true, showSystemUi = true)
 @Composable
-private fun HomePageScaffoldPreview() {
-    FIT5046Lab4Group3ass2Theme {
-        HomePageScaffold()
+private fun ApplianceCard(appliance: ApplianceEntity) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(appliance.name, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text("Wattage: ${appliance.watt} W")
+            Text("Usage: ${appliance.hours} hrs/day")
+            Text("Category: ${appliance.category}")
+        }
     }
 }

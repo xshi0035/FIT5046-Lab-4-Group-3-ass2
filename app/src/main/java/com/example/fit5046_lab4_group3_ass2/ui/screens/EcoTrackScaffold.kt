@@ -16,6 +16,9 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +39,7 @@ import kotlin.math.max
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EcoTrackScaffold(
+    navController: NavController,
     // Forward these so previews can tweak values but still show full chrome
     todayKwh: Float = 8.2f,
     avgKwh: Float = 12.6f,
@@ -80,12 +84,22 @@ fun EcoTrackScaffold(
         },
         bottomBar = {
             NavigationBar {
-                navItems.forEachIndexed { index, (label, icon) ->
+                val backStackEntry = navController.currentBackStackEntryAsState()
+                val currentRoute = backStackEntry.value?.destination?.route
+                val items = bottomNavItems()
+                items.forEach { item ->
                     NavigationBarItem(
-                        selected = index == 2, // EcoTrack selected
-                        onClick = { /* UI only */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
+                        selected = currentRoute == item.route,
+                        onClick = {
+                            if (currentRoute == item.route) return@NavigationBarItem
+                            navController.navigate(item.route) {
+                                popUpTo(NavRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) }
                     )
                 }
             }
@@ -456,7 +470,7 @@ private fun ImpactLine(label: String, valueRight: String) {
 @Composable
 fun EcoTrackPreview() {
     FIT5046Lab4Group3ass2Theme {
-        EcoTrackScaffold()
+        EcoTrackScaffold(rememberNavController())
     }
 }
 
@@ -466,6 +480,7 @@ fun EcoTrackPreview_Tunable() {
     // 19/01/2019 dataset - Daily Electricity Price and Demand Data
     FIT5046Lab4Group3ass2Theme {
         EcoTrackScaffold(
+            rememberNavController(),
             todayKwh = 9.6f,
             avgKwh = 12.0f,
             rrpAudPerMwh = 80f,         // Normal tier
@@ -482,7 +497,7 @@ fun EcoTrackPreview_Tunable() {
 fun EcoTrackPreview_High() {
     FIT5046Lab4Group3ass2Theme {
         // 23/01/2019 dataset - Daily Electricity Price and Demand Data
-        EcoTrackScaffold(rrpAudPerMwh = 154f) // shows High alert
+        EcoTrackScaffold(rememberNavController(), rrpAudPerMwh = 154f) // shows High alert
     }
 }
 
@@ -491,6 +506,6 @@ fun EcoTrackPreview_High() {
 fun EcoTrackPreview_Severe() {
     FIT5046Lab4Group3ass2Theme {
         // 15/01/2019 dataset - Daily Electricity Price and Demand Data
-        EcoTrackScaffold(rrpAudPerMwh = 222f) // shows Severe alert
+        EcoTrackScaffold(rememberNavController(), rrpAudPerMwh = 222f) // shows Severe alert
     }
 }
