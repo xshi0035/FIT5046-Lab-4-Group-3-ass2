@@ -16,6 +16,7 @@ object NavRoutes {
     const val REWARDS = "rewards"
     const val PROFILE = "profile"          // we’ll show a simple placeholder for now
     const val ADD_APPLIANCE = "addAppliance"
+    const val EDIT_APPLIANCE = "editAppliance"
 }
 
 /** Single source of truth for bottom navigation items. */

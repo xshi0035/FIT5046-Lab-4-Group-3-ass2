@@ -66,9 +66,13 @@ fun EcoTrackApp(db: AppDatabase) {
                 )
             }
 
-            // Appliances (bottom tab #2) – your existing screen
+            // Appliances (bottom tab #2)
             composable(APPLIANCES) {
-                ElectricityScaffold(navController)
+                ElectricityScaffold(
+                    navController = navController,
+                    homeViewModel = homeVM,
+                    addViewModel = addVM
+                )
             }
 
             // EcoTrack (bottom tab #3) – your existing screen
@@ -76,7 +80,7 @@ fun EcoTrackApp(db: AppDatabase) {
                 EcoTrackScaffold(navController)
             }
 
-            // Rewards (bottom tab #4) – using your Achievements screen
+            // Rewards (bottom tab #4)
             composable(REWARDS) {
                 AchievementsScaffold(
                     totalPoints = 2847,
@@ -89,7 +93,8 @@ fun EcoTrackApp(db: AppDatabase) {
                         daysActive = 0,
                         daysInMonth = 30,
                         monthlyGoal = 1000
-                    )
+                    ),
+                    navController = navController
                 )
             }
 
@@ -116,6 +121,25 @@ fun EcoTrackApp(db: AppDatabase) {
                     },
                     onCancel = { navController.popBackStack() }
                 )
+            }
+
+            // Edit Appliance
+            composable("${NavRoutes.EDIT_APPLIANCE}/{id}") { backStackEntry ->
+                val id = backStackEntry.arguments?.getString("id")?.toIntOrNull()
+                if (id != null) {
+                    EditApplianceScaffold(
+                        navController = navController,
+                        viewModel = addVM,
+                        applianceId = id,
+                        onBack = { navController.popBackStack() },
+                        onSave = { updated ->
+                            addVM.updateAppliance(updated)
+                            navController.popBackStack()
+                        }
+                    )
+                } else {
+                    Text("Invalid appliance id")
+                }
             }
         }
     }

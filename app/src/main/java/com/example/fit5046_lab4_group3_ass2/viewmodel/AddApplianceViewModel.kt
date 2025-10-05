@@ -20,4 +20,18 @@ class AddApplianceViewModel(private val dao: ApplianceDao) : ViewModel() {
             dao.insertAppliance(appliance)
         }
     }
+
+    fun updateAppliance(entity: ApplianceEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.updateAppliance(entity)
+        }
+    }
+
+    suspend fun getApplianceById(id: Int): ApplianceEntity? = dao.getById(id)
+
+    fun deleteAppliance(entity: ApplianceEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.deleteAppliance(entity)
+        }
+    }
 }

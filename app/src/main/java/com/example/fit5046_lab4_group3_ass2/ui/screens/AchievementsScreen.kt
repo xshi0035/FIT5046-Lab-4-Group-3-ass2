@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +67,7 @@ fun AchievementsScaffold(
     badges: List<Badge>,
     leaderboard: List<LeaderboardEntry>,
     monthly: MonthlyProgress,
+    navController: NavController? = null,
     onBack: () -> Unit = {},
     onNotifications: () -> Unit = {}
 ) {
@@ -104,12 +107,22 @@ fun AchievementsScaffold(
         },
         bottomBar = {
             NavigationBar {
-                navItems.forEachIndexed { index, (label, icon) ->
+                val backStackEntry = navController?.currentBackStackEntryAsState()
+                val currentRoute = backStackEntry?.value?.destination?.route
+                val items = bottomNavItems()
+                items.forEach { item ->
                     NavigationBarItem(
-                        selected = index == 3,      // Reward tab selected
-                        onClick = { /* no-op */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
+                        selected = currentRoute == item.route || (navController == null && item.label == "Rewards"),
+                        onClick = {
+                            if (navController == null || currentRoute == item.route) return@NavigationBarItem
+                            navController.navigate(item.route) {
+                                popUpTo(NavRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) }
                     )
                 }
             }

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,6 +22,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.fit5046_lab4_group3_ass2.viewmodel.AddApplianceViewModel
+import com.example.fit5046_lab4_group3_ass2.data.ApplianceEntity
 import kotlin.math.round
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -81,18 +83,88 @@ fun AddApplianceScaffold(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditApplianceScaffold(
+    navController: NavController,
+    viewModel: AddApplianceViewModel = viewModel(),
+    applianceId: Int,
+    onBack: () -> Unit,
+    onSave: (ApplianceEntity) -> Unit
+) {
+    val items = bottomNavItems()
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Edit Appliance") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                val backStackEntry = navController.currentBackStackEntryAsState()
+                val currentRoute = backStackEntry.value?.destination?.route
+                items.forEach { item ->
+                    NavigationBarItem(
+                        selected = currentRoute == item.route,
+                        onClick = {
+                            if (currentRoute == item.route) return@NavigationBarItem
+                            navController.navigate(item.route) {
+                                popUpTo(NavRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) }
+                    )
+                }
+            }
+        }
+    ) { inner ->
+        var loaded by remember { mutableStateOf<ApplianceEntity?>(null) }
+        LaunchedEffect(applianceId) {
+            loaded = viewModel.getApplianceById(applianceId)
+        }
+        loaded?.let { entity ->
+            AddApplianceContent(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(inner)
+                    .imePadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                initial = entity,
+                onSave = { name, watt, hours, category ->
+                    onSave(entity.copy(name = name, watt = watt, hours = hours, category = category))
+                },
+                onCancel = onBack
+            )
+        } ?: run {
+            Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun AddApplianceContent(
     modifier: Modifier = Modifier,
     onSave: (String, Int, Float, String) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    initial: ApplianceEntity? = null
 ) {
-    var name by remember { mutableStateOf("") }
-    var wattText by remember { mutableStateOf("") }
-    var hours by remember { mutableFloatStateOf(8f) }
+    var name by remember(initial) { mutableStateOf(initial?.name ?: "") }
+    var wattText by remember(initial) { mutableStateOf(initial?.watt?.toString() ?: "") }
+    var hours by remember(initial) { mutableFloatStateOf(initial?.hours ?: 8f) }
     val categories = listOf("Cooling & Heating", "Kitchen", "Entertainment", "Lighting", "Cleaning", "Other")
-    var category by remember { mutableStateOf("") }
+    var category by remember(initial) { mutableStateOf(initial?.category ?: "") }
     var catExpanded by remember { mutableStateOf(false) }
 
     val watt = wattText.filter { it.isDigit() }.take(5).toIntOrNull() ?: 0

@@ -17,6 +17,9 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -32,6 +35,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.example.fit5046_lab4_group3_ass2.viewmodel.AddApplianceViewModel
+import com.example.fit5046_lab4_group3_ass2.viewmodel.HomeViewModel
+import com.example.fit5046_lab4_group3_ass2.data.ApplianceEntity
+import androidx.compose.runtime.collectAsState
 
 /* ------------------------------- DATA (UI only) ------------------------------- */
 
@@ -72,7 +79,11 @@ private val demoSuggestions = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ElectricityScaffold(navController: NavController) {
+fun ElectricityScaffold(
+    navController: NavController,
+    homeViewModel: HomeViewModel,
+    addViewModel: AddApplianceViewModel
+) {
     // Public types only (keep consistent with other screens)
     val navItems: List<Pair<String, ImageVector>> = listOf(
         "Home" to Icons.Filled.Home,
@@ -131,7 +142,7 @@ fun ElectricityScaffold(navController: NavController) {
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { /* no-op */ }) {
+            FloatingActionButton(onClick = { navController.navigate(NavRoutes.ADD_APPLIANCE) }) {
                 Icon(Icons.Filled.Add, contentDescription = "Add")
             }
         }
@@ -141,13 +152,16 @@ fun ElectricityScaffold(navController: NavController) {
                 .fillMaxSize()
                 .padding(inner)
         ) {
+            val appliances by homeViewModel.allAppliances.collectAsState(initial = emptyList())
             ElectricityScreen(
                 usageKwh = "8.4 kWh",
                 costEstimate = "$2.52 estimated cost",
                 co2 = "CO₂: 4.2kg equivalent",
                 changePercent = "-12%",
-                appliances = demoAppliances,
-                suggestions = demoSuggestions
+                appliances = appliances,
+                suggestions = demoSuggestions,
+                onEdit = { id -> navController.navigate("${NavRoutes.EDIT_APPLIANCE}/$id") },
+                onDelete = { entity -> addViewModel.deleteAppliance(entity) }
             )
         }
     }
@@ -161,8 +175,10 @@ fun ElectricityScreen(
     costEstimate: String,
     co2: String,
     changePercent: String,
-    appliances: List<Appliance>,
-    suggestions: List<Suggestion>
+    appliances: List<ApplianceEntity>,
+    suggestions: List<Suggestion>,
+    onEdit: (Int) -> Unit,
+    onDelete: (ApplianceEntity) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -229,8 +245,18 @@ fun ElectricityScreen(
         }
 
         // Appliance list
-        items(appliances) { appliance ->
-            ApplianceCard(appliance)
+        items(appliances, key = { it.id }) { entity ->
+            ApplianceCard(
+                appliance = Appliance(
+                    iconEmoji = "🔌",
+                    name = entity.name,
+                    spec = "${entity.watt}W • ${entity.hours}h daily",
+                    costPerDay = String.format("$%.2f/day", (entity.watt * entity.hours / 1000f) * 0.30f),
+                    kwh = String.format("%.1f kWh", (entity.watt * entity.hours / 1000f))
+                ),
+                onEdit = { onEdit(entity.id) },
+                onDelete = { onDelete(entity) }
+            )
             Spacer(Modifier.height(12.dp))
         }
 
@@ -275,7 +301,11 @@ private fun ChangePill(text: String) {
 }
 
 @Composable
-private fun ApplianceCard(appliance: Appliance) {
+private fun ApplianceCard(
+    appliance: Appliance,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -321,11 +351,26 @@ private fun ApplianceCard(appliance: Appliance) {
 
             Spacer(Modifier.height(12.dp))
 
+            var showDelete by remember { mutableStateOf(false) }
+            if (showDelete) {
+                AlertDialog(
+                    onDismissRequest = { showDelete = false },
+                    confirmButton = {
+                        TextButton(onClick = { showDelete = false; onDelete() }) { Text("Delete") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDelete = false }) { Text("Don't delete") }
+                    },
+                    title = { Text("Delete appliance?") },
+                    text = { Text("This action cannot be undone.") }
+                )
+            }
+
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { /* no-op */ }, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
                     Text("Edit")
                 }
-                OutlinedButton(onClick = { /* no-op */ }, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = { showDelete = true }, modifier = Modifier.weight(1f)) {
                     Text("Delete")
                 }
             }
@@ -396,6 +441,17 @@ private fun ActionCard(modifier: Modifier = Modifier, label: String) {
 @Composable
 fun ElectricityPreview() {
     FIT5046Lab4Group3ass2Theme {
-        ElectricityScaffold(rememberNavController())
+        ElectricityScreen(
+            usageKwh = "8.4 kWh",
+            costEstimate = "$2.52 estimated cost",
+            co2 = "CO₂: 4.2kg equivalent",
+            changePercent = "-12%",
+            appliances = listOf(
+                ApplianceEntity(id = 1, name = "Demo TV", watt = 150, hours = 6f, category = "Entertainment")
+            ),
+            suggestions = demoSuggestions,
+            onEdit = {},
+            onDelete = {}
+        )
     }
 }
