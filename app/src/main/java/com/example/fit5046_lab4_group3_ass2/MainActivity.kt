@@ -36,6 +36,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.fit5046_lab4_group3_ass2.ui.screens.EcoTrackScaffold
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.example.retrofittesting.Items
 import com.example.retrofittesting.RetrofitViewModel
 import kotlin.getValue
 
@@ -56,13 +57,13 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BottomNavigationBar(priceViewModel: RetrofitViewModel) {
-    // get the price from here
     LaunchedEffect(Unit) {
         priceViewModel.customSearch()
     }
     val itemsReturned by priceViewModel.retrofitResponse
     val price = if (itemsReturned.data.isNotEmpty()) {
-        itemsReturned.data[0].results[0].data[0][1].toString().toFloat()
+        itemsReturned.data[0].results[0].data
+            .last { it.size > 1 && it[1] is Number }[1].toString().toFloat()
     } else {
         0f
     }

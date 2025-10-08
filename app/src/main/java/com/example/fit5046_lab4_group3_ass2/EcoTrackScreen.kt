@@ -241,7 +241,7 @@ private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
 
     Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Today’s Price", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Latest Price", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
