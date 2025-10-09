@@ -69,4 +69,5 @@ dependencies {
     implementation (libs.converter.gson)
     implementation(libs.gson)
     implementation(libs.logging.interceptor)
+    implementation(libs.mpandroidchart)
 }

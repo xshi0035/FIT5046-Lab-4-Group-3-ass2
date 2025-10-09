@@ -27,8 +27,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 import kotlin.math.max
+import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import com.github.mikephil.charting.utils.ColorTemplate
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
 
 /* ------------------------------- SCAFFOLD ------------------------------- */
 
@@ -131,7 +139,8 @@ fun EcoTrackScreen(
             item { PriceAlertBanner(rrpAudPerMwh, severity) }
         }
 
-        item { ChartPlaceholderCard() }
+        //item { ChartPlaceholderCard() }
+        item {LineChartScreen()}
 
         item {
             Row(
@@ -435,6 +444,39 @@ private fun ImpactLine(label: String, valueRight: String) {
             Text(valueRight, fontWeight = FontWeight.Medium)
         }
     }
+}
+
+@Composable
+fun LineChartScreen() {
+    val lineEntries = listOf(
+        Entry(0f, 1070f),
+        Entry(1f, 4050f),
+        Entry(2f, 3890f),
+        Entry(3f, 5599f),
+        Entry(4f, 2300f),
+        Entry(5f, 4055f)
+    )
+    val lineDataSet = LineDataSet(lineEntries, "Steps")
+    lineDataSet.colors = ColorTemplate.COLORFUL_COLORS.toList()
+    val lineData = LineData(lineDataSet)
+    AndroidView(
+        modifier = Modifier.fillMaxWidth().height(300.dp),
+        factory = { context ->
+            LineChart(context).apply {
+                data = lineData
+                description.isEnabled = false
+                xAxis.position = XAxis.XAxisPosition.BOTTOM
+                xAxis.valueFormatter =
+                    IndexAxisValueFormatter(
+                        listOf(
+                            "Sun", "Mon", "Tues", "Wed", "Thurs",
+                            "Fri", "Sat"
+                        )
+                    )
+                animateY(4000)
+            }
+        }
+    )
 }
 
 /* -------------------------------- PREVIEWS -------------------------------- */
