@@ -14,11 +14,11 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,44 +30,23 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.fit5046_lab4_group3_ass2.ui.rewards.Badge
+import com.example.fit5046_lab4_group3_ass2.ui.rewards.MonthlyProgress
+import com.example.fit5046_lab4_group3_ass2.ui.rewards.RewardsViewModel
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 
-/* ------------------------ Data models ------------------------ */
-
-data class Badge(
-    val title: String,
-    val subtitle: String,
-    val date: String
-)
-
-data class LeaderboardEntry(
-    val rank: Int,
-    val name: String,
-    val points: Int,
-    val isYou: Boolean = false
-)
-
-data class MonthlyProgress(
-    val pointsThisMonth: Int,
-    val badgesEarned: Int,
-    val daysActive: Int,
-    val daysInMonth: Int,
-    val monthlyGoal: Int
-)
-
-/* ------------------------ Scaffold (consistent chrome) ------------------------ */
+/* ------------------------ Scaffold ------------------------ */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AchievementsScaffold(
-    totalPoints: Int,
-    electricityPoints: Int,
-    badges: List<Badge>,
-    leaderboard: List<LeaderboardEntry>,
-    monthly: MonthlyProgress,
+fun RewardsScaffold(
     onBack: () -> Unit = {},
-    onNotifications: () -> Unit = {}
+    onNotifications: () -> Unit = {},
+    vm: RewardsViewModel = viewModel()
 ) {
+    val state by vm.ui.collectAsState()
+
     val navItems = listOf(
         "Home" to Icons.Filled.Home,
         "Appliances" to Icons.Filled.Add,
@@ -90,7 +69,6 @@ fun AchievementsScaffold(
                         IconButton(onClick = onNotifications) {
                             Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                         }
-                        // small unread dot
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
@@ -106,8 +84,8 @@ fun AchievementsScaffold(
             NavigationBar {
                 navItems.forEachIndexed { index, (label, icon) ->
                     NavigationBarItem(
-                        selected = index == 3,      // Reward tab selected
-                        onClick = { /* no-op */ },
+                        selected = index == 3,
+                        onClick = { /* TODO: hook to real nav */ },
                         icon = { Icon(icon, contentDescription = label) },
                         label = { Text(label) }
                     )
@@ -115,12 +93,11 @@ fun AchievementsScaffold(
             }
         }
     ) { inner ->
-        AchievementsContent(
-            totalPoints = totalPoints,
-            electricityPoints = electricityPoints,
-            badges = badges,
-            leaderboard = leaderboard,
-            monthly = monthly,
+        RewardsContent(
+            totalPoints = state.totalPoints,
+            electricityPoints = state.electricityPoints,
+            badges = state.badges,
+            monthly = state.monthly,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
@@ -129,14 +106,13 @@ fun AchievementsScaffold(
     }
 }
 
-/* ------------------------ Screen content ------------------------ */
+/* ------------------------ Content（无 Leaderboard） ------------------------ */
 
 @Composable
-private fun AchievementsContent(
+private fun RewardsContent(
     totalPoints: Int,
     electricityPoints: Int,
     badges: List<Badge>,
-    leaderboard: List<LeaderboardEntry>,
     monthly: MonthlyProgress,
     modifier: Modifier = Modifier
 ) {
@@ -144,7 +120,7 @@ private fun AchievementsContent(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // EcoPoints tracker (electricity-focused)
+        // EcoPoints tracker
         item {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(16.dp)) {
@@ -201,6 +177,9 @@ private fun AchievementsContent(
             ) {
                 badges.forEach { b ->
                     ListRow(
+                        headline = b.title,
+                        supporting = b.subtitle,
+                        trailing = b.date,
                         leading = {
                             Surface(
                                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -211,55 +190,10 @@ private fun AchievementsContent(
                                     Icon(Icons.Filled.EmojiEvents, contentDescription = null)
                                 }
                             }
-                        },
-                        headline = b.title,
-                        supporting = b.subtitle,
-                        trailing = b.date
+                        }
                     )
                     Divider()
                 }
-            }
-        }
-
-        // Community Leaderboard
-        item {
-            SectionCard(
-                title = "Community Leaderboard",
-                trailing = {
-                    Icon(
-                        Icons.Filled.EmojiEvents,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            ) {
-                leaderboard.forEach { e ->
-                    ListRow(
-                        leading = { RankAvatar(rank = e.rank, isYou = e.isYou) },
-                        headline = if (e.isYou) "Your Rank" else e.name,
-                        supporting = "%,d points".format(e.points),
-                        trailing = if (e.isYou) null else " "
-                    )
-                    Divider()
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp, horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Community Average", style = MaterialTheme.typography.bodyMedium)
-                    val avg = leaderboard.map { it.points }.average().toInt()
-                    Text("%,d points".format(avg), style = MaterialTheme.typography.bodyMedium)
-                }
-                Text(
-                    text = "You're 54% above average!",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                Spacer(Modifier.height(8.dp))
             }
         }
 
@@ -301,8 +235,6 @@ private fun AchievementsContent(
         item { Spacer(Modifier.height(16.dp)) }
     }
 }
-
-/* ------------------------ Reusable pieces ------------------------ */
 
 @Composable
 private fun InfoRow(label: String, value: String) {
@@ -417,58 +349,10 @@ private fun StatChip(
     }
 }
 
-@Composable
-private fun RankAvatar(rank: Int, isYou: Boolean) {
-    val bg = if (isYou) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-    val fg = if (isYou) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-    Surface(shape = CircleShape, color = bg) {
-        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Icon(Icons.Filled.Person, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
-                Text("#$rank", color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
-
-/* ------------------------ Previews ------------------------ */
+/* ------------------------ Preview ------------------------ */
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
-fun Preview_AchievementsScreen() {
-    val badges = remember {
-        listOf(
-            Badge("Peak Shaver", "Avoided peak-hour usage for 7 days", "Jan 15"),
-            Badge("100 kWh Saved", "Reduced electricity consumption", "Jan 10"),
-            Badge("30-day Streak", "Consistent daily logging", "Dec 28")
-        )
-    }
-    val leaderboard = remember {
-        listOf(
-            LeaderboardEntry(rank = 7, name = "Your Rank", points = 2_847, isYou = true),
-            LeaderboardEntry(rank = 1, name = "PowerSaverPro", points = 4_892),
-            LeaderboardEntry(rank = 2, name = "GreenThumb_42", points = 4_156),
-            LeaderboardEntry(rank = 3, name = "WattWatcher", points = 3_924)
-        )
-    }
-    val monthly = MonthlyProgress(
-        pointsThisMonth = 847,
-        badgesEarned = 3,
-        daysActive = 18,
-        daysInMonth = 31,
-        monthlyGoal = 1000
-    )
-
-    FIT5046Lab4Group3ass2Theme {
-        AchievementsScaffold(
-            totalPoints = 2_847,
-            electricityPoints = 1_523,
-            badges = badges,
-            leaderboard = leaderboard,
-            monthly = monthly
-        )
-    }
+private fun Preview_Rewards() {
+    FIT5046Lab4Group3ass2Theme { RewardsScaffold() }
 }
