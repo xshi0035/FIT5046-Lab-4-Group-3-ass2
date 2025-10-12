@@ -38,17 +38,22 @@ import com.example.fit5046_lab4_group3_ass2.ui.screens.EcoTrackScaffold
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 import com.example.retrofittesting.Items
 import com.example.retrofittesting.RetrofitViewModel
+import com.example.sensorslab.SensorViewModel
 import kotlin.getValue
 
 class MainActivity : ComponentActivity() {
     private val priceViewModel: RetrofitViewModel by viewModels()
-
+    private val sensorViewModel: SensorViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        loadHeartRateData(
+            context = this,
+            fileName = "household_power_consumption.csv"
+        )
         enableEdgeToEdge()
         setContent {
             FIT5046Lab4Group3ass2Theme {
-                BottomNavigationBar(priceViewModel)
+                BottomNavigationBar(priceViewModel, sensorViewModel)
             }
         }
     }
@@ -56,7 +61,8 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BottomNavigationBar(priceViewModel: RetrofitViewModel) {
+fun BottomNavigationBar(priceViewModel: RetrofitViewModel, sensorViewModel: SensorViewModel) {
+    //For getting latest prices from API
     LaunchedEffect(Unit) {
         priceViewModel.customSearch()
     }
@@ -111,7 +117,7 @@ fun BottomNavigationBar(priceViewModel: RetrofitViewModel) {
         ) {
             /*composable(Destination.HOME.route) { HomeScreen() }
             composable(Destination.HISTORY.route) { AppliancesScreen() }*/
-            composable(Destination.ECOTRACK.route) { com.example.fit5046_lab4_group3_ass2.EcoTrackScaffold(rrpAudPerMwh = price) }/*
+            composable(Destination.ECOTRACK.route) { com.example.fit5046_lab4_group3_ass2.EcoTrackScaffold(viewModel = sensorViewModel, rrpAudPerMwh = price) }/*
             composable(Destination.PROFILE.route) { RewardsScreen() }
             composable(Destination.PROFILE.route) { ProfileScreen() }*/
 

@@ -1,5 +1,6 @@
 package com.example.fit5046_lab4_group3_ass2
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,8 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,7 +31,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.example.sensorslab.SensorViewModel
 import kotlin.math.max
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
@@ -37,12 +42,16 @@ import com.github.mikephil.charting.utils.ColorTemplate
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import kotlin.sequences.forEach
 
 /* ------------------------------- SCAFFOLD ------------------------------- */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EcoTrackScaffold(
+    viewModel: SensorViewModel,
     // Forward these so previews can tweak values but still show full chrome
     todayKwh: Float = 8.2f,
     avgKwh: Float = 12.6f,
@@ -92,6 +101,7 @@ fun EcoTrackScaffold(
                 .padding(inner)
         ) {
             EcoTrackScreen(
+                viewModel,
                 todayKwh = todayKwh,
                 avgKwh = avgKwh,
                 rrpAudPerMwh = rrpAudPerMwh,
@@ -111,6 +121,7 @@ private enum class PriceSeverity { Normal, High, Severe }
 /** Parameterized so previews (and Scaffold) can pass values. */
 @Composable
 fun EcoTrackScreen(
+    viewModel: SensorViewModel,
     todayKwh: Float = 8.2f,
     avgKwh: Float = 12.6f,
     rrpAudPerMwh: Float = 132f,
@@ -119,6 +130,7 @@ fun EcoTrackScreen(
     kpiVsYesterdayText: String = "-12%",
     kpiCostTodayText: String = "$2.46"
 ) {
+    val data by viewModel.sensorData.collectAsState()
     val severity = when {
         rrpAudPerMwh > 200f -> PriceSeverity.Severe
         rrpAudPerMwh > 100f -> PriceSeverity.High
@@ -479,47 +491,41 @@ fun LineChartScreen() {
     )
 }
 
-/* -------------------------------- PREVIEWS -------------------------------- */
+data class CsvPowerRecord(val index: String, val Date: String, val Time: String, val Global_active_power: String )
 
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun EcoTrackPreview() {
-    FIT5046Lab4Group3ass2Theme {
-        EcoTrackScaffold()
+object CsvRecordsObject {
+    private var records: List<CsvPowerRecord>? = null
+    fun setRecords(new_records: List<CsvPowerRecord>) {
+        records = new_records
+    }
+    fun getRecords(): List<CsvPowerRecord>? {
+        return records
     }
 }
-
-@Preview(name = "EcoTrack – Tunable", showBackground = true, showSystemUi = true)
-@Composable
-fun EcoTrackPreview_Tunable() {
-    // 19/01/2019 dataset - Daily Electricity Price and Demand Data
-    FIT5046Lab4Group3ass2Theme {
-        EcoTrackScaffold(
-            todayKwh = 9.6f,
-            avgKwh = 12.0f,
-            rrpAudPerMwh = 80f,         // Normal tier
-            selectedPeriodIndex = 0,
-            kpiTodayText = "9.6",
-            kpiVsYesterdayText = "-8%",
-            kpiCostTodayText = "$2.75"
-        )
+fun loadHeartRateData(context: Context, fileName: String) {
+    val records = mutableListOf<CsvPowerRecord>()
+    try {
+        val inputStream = context.assets.open(fileName)
+        val reader = BufferedReader(InputStreamReader(inputStream))
+        reader.useLines { lines ->
+            lines.drop(1).forEach { line -> // Skip header
+                val values = line.split(',', ';', '\t')
+                if (values.size >= 4) {
+                    records.add(
+                        CsvPowerRecord(
+                            index = values[0].trim(),
+                            Date = values[1].trim(),
+                            Time = values[2].trim(),
+                            Global_active_power = values[3].trim()
+                        )
+                    )
+                }
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
-}
-
-@Preview(name = "EcoTrack – High Price", showBackground = true, showSystemUi = true)
-@Composable
-fun EcoTrackPreview_High() {
-    FIT5046Lab4Group3ass2Theme {
-        // 23/01/2019 dataset - Daily Electricity Price and Demand Data
-        EcoTrackScaffold(rrpAudPerMwh = 154f) // shows High alert
-    }
-}
-
-@Preview(name = "EcoTrack – Severe Price", showBackground = true, showSystemUi = true)
-@Composable
-fun EcoTrackPreview_Severe() {
-    FIT5046Lab4Group3ass2Theme {
-        // 15/01/2019 dataset - Daily Electricity Price and Demand Data
-        EcoTrackScaffold(rrpAudPerMwh = 222f) // shows Severe alert
-    }
+    //set the records so they can be accessed by sensor data provider. this is not very neat
+    CsvRecordsObject.setRecords(records)
+    return
 }
