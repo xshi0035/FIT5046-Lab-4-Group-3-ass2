@@ -17,10 +17,10 @@
       <SelectionState runConfigName="TipsPreview">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="SignUpPreview">
+      <SelectionState runConfigName="Preview_AchievementsScreen">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="Preview_AchievementsScreen">
+      <SelectionState runConfigName="AddAppliancePreview">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>
