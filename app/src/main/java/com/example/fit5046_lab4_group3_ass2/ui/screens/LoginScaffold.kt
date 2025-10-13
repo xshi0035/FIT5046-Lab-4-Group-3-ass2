@@ -1,5 +1,6 @@
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
+import android.content.Context.MODE_PRIVATE
 import android.util.Patterns
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -31,13 +33,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.R
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
+import androidx.core.content.edit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScaffold(
-    onLoginSuccess: () -> Unit = {},   // -> navigate to Home
-    onGoToSignUp: () -> Unit = {}      // -> navigate to SignUp
+    onLoginSuccess: () -> Unit = {},   // navigate to Home
+    onGoToSignUp: () -> Unit = {}      // navigate to SignUp
 ) {
+    val snackbarHost = remember { SnackbarHostState() }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -64,7 +71,8 @@ fun LoginScaffold(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHost) }
     ) { inner ->
         Surface(
             modifier = Modifier
@@ -73,7 +81,8 @@ fun LoginScaffold(
         ) {
             LoginScreen(
                 onLoginSuccess = onLoginSuccess,
-                onGoToSignUp = onGoToSignUp
+                onGoToSignUp = onGoToSignUp,
+                snackbarHost = snackbarHost
             )
         }
     }
@@ -82,20 +91,36 @@ fun LoginScaffold(
 @Composable
 private fun LoginScreen(
     onLoginSuccess: () -> Unit,
-    onGoToSignUp: () -> Unit
+    onGoToSignUp: () -> Unit,
+    snackbarHost: SnackbarHostState
 ) {
     val focus = LocalFocusManager.current
     val scroll = rememberScrollState()
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope() // for launching snackbar coroutines
+
+    // simple persistence using SharedPreferences (no extra deps)
+    val prefs = remember { ctx.getSharedPreferences("auth_prefs", MODE_PRIVATE) }
 
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
+    var rememberMe by rememberSaveable { mutableStateOf(false) }
     var loading by rememberSaveable { mutableStateOf(false) }
+    var resetting by rememberSaveable { mutableStateOf(false) }
 
     // inline validation + server error
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var serverError by remember { mutableStateOf<String?>(null) }
+
+    // load saved “remember me” state once
+    LaunchedEffect(Unit) {
+        rememberMe = prefs.getBoolean("remember_me", false)
+        if (rememberMe) {
+            email = prefs.getString("remember_email", "") ?: ""
+        }
+    }
 
     fun validateEmail(now: String = email) {
         emailError = when {
@@ -155,7 +180,9 @@ private fun LoginScreen(
             "Track your eco-friendly journey",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
         )
 
         Spacer(Modifier.height(16.dp))
@@ -209,6 +236,57 @@ private fun LoginScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        // Remember me  |  Forgot Password?
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = rememberMe,
+                    onCheckedChange = { checked ->
+                        rememberMe = checked
+                        // persist the toggle immediately (KTX)
+                        prefs.edit { putBoolean("remember_me", checked) }
+                        if (!checked) {
+                            prefs.edit { remove("remember_email") }
+                        }
+                    }
+                )
+                Text("Remember me", style = MaterialTheme.typography.bodySmall)
+            }
+
+            TextButton(
+                enabled = !resetting,
+                onClick = {
+                    // need a valid email to send reset
+                    validateEmail()
+                    if (emailError != null) return@TextButton
+                    resetting = true
+                    FirebaseAuth.getInstance()
+                        .sendPasswordResetEmail(email.trim())
+                        .addOnCompleteListener { t ->
+                            resetting = false
+                            if (t.isSuccessful) {
+                                scope.launch {
+                                    snackbarHost.showSnackbar("Password reset email sent.")
+                                }
+                            } else {
+                                val msg = t.exception?.localizedMessage
+                                    ?: "Couldn't send reset email."
+                                scope.launch {
+                                    snackbarHost.showSnackbar(msg)
+                                }
+                            }
+                        }
+                }
+            ) {
+                Text("Forgot Password?")
+            }
+        }
+
         // backend error (e.g., wrong-password, user-not-found)
         serverError?.let {
             Spacer(Modifier.height(8.dp))
@@ -222,18 +300,34 @@ private fun LoginScreen(
                 serverError = null
                 if (!allValid()) return@Button
                 loading = true
+                // Do sign-in via your AuthRepo or directly with Firebase
                 AuthRepo.signIn(email.trim(), password) { res ->
                     loading = false
-                    res.onSuccess { onLoginSuccess() }
-                        .onFailure { e -> serverError = e.message ?: "Login failed." }
+                    res.onSuccess {
+                        // persist email if rememberMe
+                        if (rememberMe) {
+                            prefs.edit { putString("remember_email", email.trim()) }
+                        }
+                        onLoginSuccess()
+                    }.onFailure { e ->
+                        serverError = e.message ?: "Login failed."
+                    }
                 }
             },
             enabled = !loading,
             shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().height(52.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
         ) {
-            if (loading) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
-            else Text("Login", fontWeight = FontWeight.Medium)
+            if (loading) {
+                CircularProgressIndicator(
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(22.dp)
+                )
+            } else {
+                Text("Login", fontWeight = FontWeight.Medium)
+            }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -274,8 +368,14 @@ private fun SegmentedTabsLogin(
             Surface(
                 color = selected,
                 shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.weight(1f).height(40.dp)
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Login", fontWeight = FontWeight.Medium) } }
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Login", fontWeight = FontWeight.Medium)
+                }
+            }
             Spacer(Modifier.width(6.dp))
             Surface(
                 color = container,
@@ -286,7 +386,11 @@ private fun SegmentedTabsLogin(
                     .clickable { onSignUpClick() }
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Sign Up", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                    Text(
+                        "Sign Up",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
