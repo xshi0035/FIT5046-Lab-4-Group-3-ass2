@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 data class DayUse(
     @PrimaryKey(autoGenerate = true)
     val uid: Int = 0,
-    val date: Int,
-    val use: Int,
+    val date: Long,
+    val use: Float,
     val price: Int
 )

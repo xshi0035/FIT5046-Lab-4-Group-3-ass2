@@ -2,6 +2,7 @@ package com.example.fit5046_lab4_group3_ass2
 
 import android.app.Application
 import android.util.Log
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,14 +15,14 @@ import com.example.sensorslab.SensorRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.time.withTimeoutOrNull
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Date
 
 class EcoTrackScreenViewModel(application: Application) : AndroidViewModel(application) {
     //API stuff
@@ -80,16 +81,33 @@ class EcoTrackScreenViewModel(application: Application) : AndroidViewModel(appli
     // complicated functionality
     fun storeARecord() {
         // get the amount used
+        var latest = ""
         viewModelScope.launch {
-            val latest = withTimeoutOrNull(5_000L) {
+            latest = withTimeoutOrNull(5_000L) {
                 sensorRepository.getSensorData().first { it != "0" }
             } ?: sensorRepository.getSensorData().value
             Log.e("sensor value", latest)
-            // store latest...
         }
         // get the price
-
+        val itemsReturned by retrofitResponse
+        val price = if (itemsReturned.data.isNotEmpty()) {
+            itemsReturned.data[0].results[0].data
+                .last { it.size > 1 && it[1] is Number }[1].toString().toFloat()
+        } else {
+            0f
+        }
         // store together
+        insertDayUse(DayUse(date = (Date().getTime() / 1000), use = latest.toFloat(), price = price.toInt()))
+
+        //print the records for testing:
+        val records = cRepository.allDayUses
+        viewModelScope.launch {
+                // Trigger the flow and consume its elements using collect
+                cRepository.allDayUses.collect { day ->
+                    Log.e("DayUse", day.toString())
+                }
+            }
+
         return
     }
 }

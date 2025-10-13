@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.stateIn
 class SensorDataProvider(
     private val scope: CoroutineScope
 ) {
-    private val refreshIntervalMs: Long = 1000
+    private val refreshIntervalMs: Long = 60000
 
     /*fun sensorDataFlow(): Flow<String> {
         val csv_records = CsvRecordsObject.getRecords()
