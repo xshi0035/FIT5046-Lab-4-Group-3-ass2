@@ -5,18 +5,21 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -32,8 +35,8 @@ import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScaffold(
-    onSuccess: () -> Unit = {},
-    onGoToSignUp: () -> Unit = {}
+    onLoginSuccess: () -> Unit = {},   // -> navigate to Home
+    onGoToSignUp: () -> Unit = {}      // -> navigate to SignUp
 ) {
     Scaffold(
         topBar = {
@@ -56,7 +59,7 @@ fun LoginScaffold(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* no-op */ }) {
+                    IconButton(onClick = { /* optional */ }) {
                         Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                     }
                 }
@@ -68,43 +71,62 @@ fun LoginScaffold(
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            LoginScreen(onSuccess, onGoToSignUp)
+            LoginScreen(
+                onLoginSuccess = onLoginSuccess,
+                onGoToSignUp = onGoToSignUp
+            )
         }
     }
 }
 
 @Composable
 private fun LoginScreen(
-    onSuccess: () -> Unit,
+    onLoginSuccess: () -> Unit,
     onGoToSignUp: () -> Unit
 ) {
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var showPassword by remember { mutableStateOf(false) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    val focus = LocalFocusManager.current
+    val scroll = rememberScrollState()
 
-    fun validate(): Boolean {
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            error = "Please enter a valid email."
-            return false
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+    var loading by rememberSaveable { mutableStateOf(false) }
+
+    // inline validation + server error
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var serverError by remember { mutableStateOf<String?>(null) }
+
+    fun validateEmail(now: String = email) {
+        emailError = when {
+            now.isEmpty() -> "Email is required."
+            !Patterns.EMAIL_ADDRESS.matcher(now).matches() -> "Please enter a valid email."
+            else -> null
         }
-        if (password.isEmpty()) {
-            error = "Please enter your password."
-            return false
+    }
+
+    fun validatePassword(now: String = password) {
+        passwordError = when {
+            now.isEmpty() -> "Password is required."
+            else -> null
         }
-        error = null
-        return true
+    }
+
+    fun allValid(): Boolean {
+        validateEmail(); validatePassword()
+        return emailError == null && passwordError == null
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .verticalScroll(scroll)
+            .imePadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(4.dp))
 
-        // HERO logo
+        // HERO
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
@@ -137,7 +159,7 @@ private fun LoginScreen(
         )
 
         Spacer(Modifier.height(16.dp))
-        SegmentedTabs()
+        SegmentedTabsLogin(onSignUpClick = onGoToSignUp)
 
         Spacer(Modifier.height(20.dp))
 
@@ -146,7 +168,12 @@ private fun LoginScreen(
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = {
+                email = it
+                if (emailError != null) validateEmail(it)
+            },
+            isError = emailError != null,
+            supportingText = { emailError?.let { m -> Text(m, color = MaterialTheme.colorScheme.error) } },
             singleLine = true,
             placeholder = { Text("Enter your email") },
             trailingIcon = { Icon(Icons.Filled.Email, contentDescription = "Email") },
@@ -161,7 +188,12 @@ private fun LoginScreen(
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = {
+                password = it
+                if (passwordError != null) validatePassword(it)
+            },
+            isError = passwordError != null,
+            supportingText = { passwordError?.let { m -> Text(m, color = MaterialTheme.colorScheme.error) } },
             singleLine = true,
             placeholder = { Text("Enter your password") },
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -169,8 +201,7 @@ private fun LoginScreen(
                 IconButton(onClick = { showPassword = !showPassword }) {
                     Icon(
                         painter = painterResource(id = R.drawable.show_password_icon),
-                        contentDescription = if (showPassword) "Hide password" else "Show password",
-                        tint = Color.Unspecified
+                        contentDescription = if (showPassword) "Hide password" else "Show password"
                     )
                 }
             },
@@ -178,23 +209,26 @@ private fun LoginScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        if (error != null) {
+        // backend error (e.g., wrong-password, user-not-found)
+        serverError?.let {
             Spacer(Modifier.height(8.dp))
-            Text(error!!, color = MaterialTheme.colorScheme.error)
+            Text(it, color = MaterialTheme.colorScheme.error)
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         Button(
-            enabled = !loading,
             onClick = {
-                if (!validate()) return@Button
+                focus.clearFocus()
+                serverError = null
+                if (!allValid()) return@Button
                 loading = true
                 AuthRepo.signIn(email.trim(), password) { res ->
                     loading = false
-                    res.onSuccess { onSuccess() }
-                        .onFailure { e -> error = e.message ?: "Login failed." }
+                    res.onSuccess { onLoginSuccess() }
+                        .onFailure { e -> serverError = e.message ?: "Login failed." }
                 }
             },
+            enabled = !loading,
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
@@ -202,11 +236,13 @@ private fun LoginScreen(
             else Text("Login", fontWeight = FontWeight.Medium)
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(20.dp))
+
+        // footer
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(bottom = 24.dp),
             horizontalArrangement = Arrangement.Center
         ) {
             Text("New to EcoTrack? ")
@@ -223,10 +259,11 @@ private fun LoginScreen(
 /* ----------------------------- COMPONENTS ---------------------------------- */
 
 @Composable
-private fun SegmentedTabs() {
+private fun SegmentedTabsLogin(
+    onSignUpClick: () -> Unit
+) {
     val container = MaterialTheme.colorScheme.surfaceVariant
     val selected = MaterialTheme.colorScheme.surface
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -238,22 +275,18 @@ private fun SegmentedTabs() {
                 color = selected,
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.weight(1f).height(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Text("Login", fontWeight = FontWeight.Medium)
-                }
-            }
+            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Login", fontWeight = FontWeight.Medium) } }
             Spacer(Modifier.width(6.dp))
             Surface(
                 color = container,
                 shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.weight(1f).height(40.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clickable { onSignUpClick() }
             ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Text("Sign Up",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium
-                    )
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Sign Up", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
                 }
             }
         }
