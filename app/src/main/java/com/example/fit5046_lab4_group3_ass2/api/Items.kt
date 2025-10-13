@@ -1,4 +1,4 @@
-package com.example.retrofittesting
+package com.example.fit5046_lab4_group3_ass2.api
 
 data class Items(
     val network_code: String,

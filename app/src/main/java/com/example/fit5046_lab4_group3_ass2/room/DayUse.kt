@@ -8,5 +8,6 @@ data class DayUse(
     @PrimaryKey(autoGenerate = true)
     val uid: Int = 0,
     val date: Int,
-    val use: Int
+    val use: Int,
+    val price: Int
 )

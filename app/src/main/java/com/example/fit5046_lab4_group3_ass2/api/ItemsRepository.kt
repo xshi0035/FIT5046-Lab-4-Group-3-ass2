@@ -1,4 +1,4 @@
-package com.example.retrofittesting
+package com.example.fit5046_lab4_group3_ass2.api
 
 class ItemsRepository {
     private val searchService = RetrofitObject.retrofitService

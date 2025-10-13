@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -33,7 +34,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
-import com.example.sensorslab.SensorViewModel
 import kotlin.math.max
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
@@ -42,6 +42,7 @@ import com.github.mikephil.charting.utils.ColorTemplate
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import kotlinx.coroutines.flow.lastOrNull
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.sequences.forEach
@@ -51,7 +52,7 @@ import kotlin.sequences.forEach
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EcoTrackScaffold(
-    viewModel: SensorViewModel,
+    viewModel: EcoTrackScreenViewModel,
     // Forward these so previews can tweak values but still show full chrome
     todayKwh: Float = 8.2f,
     avgKwh: Float = 12.6f,
@@ -68,6 +69,18 @@ fun EcoTrackScaffold(
         "Rewards" to Icons.Filled.Star,   // <- plural for consistency
         "Profile" to Icons.Filled.AccountCircle
     )
+
+    //For getting latest prices from API
+    LaunchedEffect(Unit) {
+        viewModel.customSearch()
+    }
+    val itemsReturned by viewModel.retrofitResponse
+    val price = if (itemsReturned.data.isNotEmpty()) {
+        itemsReturned.data[0].results[0].data
+            .last { it.size > 1 && it[1] is Number }[1].toString().toFloat()
+    } else {
+        0f
+    }
 
     Scaffold(
         topBar = {
@@ -104,7 +117,7 @@ fun EcoTrackScaffold(
                 viewModel,
                 todayKwh = todayKwh,
                 avgKwh = avgKwh,
-                rrpAudPerMwh = rrpAudPerMwh,
+                rrpAudPerMwh = price,
                 selectedPeriodIndex = selectedPeriodIndex,
                 kpiTodayText = kpiTodayText,
                 kpiVsYesterdayText = kpiVsYesterdayText,
@@ -121,7 +134,7 @@ private enum class PriceSeverity { Normal, High, Severe }
 /** Parameterized so previews (and Scaffold) can pass values. */
 @Composable
 fun EcoTrackScreen(
-    viewModel: SensorViewModel,
+    viewModel: EcoTrackScreenViewModel,
     todayKwh: Float = 8.2f,
     avgKwh: Float = 12.6f,
     rrpAudPerMwh: Float = 132f,
@@ -131,6 +144,7 @@ fun EcoTrackScreen(
     kpiCostTodayText: String = "$2.46"
 ) {
     val data by viewModel.sensorData.collectAsState()
+
     val severity = when {
         rrpAudPerMwh > 200f -> PriceSeverity.Severe
         rrpAudPerMwh > 100f -> PriceSeverity.High
