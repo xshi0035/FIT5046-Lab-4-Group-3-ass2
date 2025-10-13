@@ -1,6 +1,7 @@
 package com.example.fit5046_lab4_group3_ass2
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,6 +45,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import kotlinx.coroutines.flow.lastOrNull
+import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.sequences.forEach
@@ -151,6 +154,8 @@ fun EcoTrackScreen(
         else -> PriceSeverity.Normal
     }
 
+    val coroutineScope = rememberCoroutineScope()
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -158,6 +163,14 @@ fun EcoTrackScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp)
     ) {
+        item {Button(onClick = {
+            coroutineScope.launch { try {
+            viewModel.storeARecord()
+        } catch (e: Exception) {
+            Log.e("ButtonClick", "Error storing record", e)
+        } } }) {
+            Text("Store record")
+        }}
         item { PeriodChips(selectedIndex = selectedPeriodIndex) }
         item { PriceHeaderCard(rrpAudPerMwh, severity) }
 
