@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -52,7 +53,6 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.foundation)
-    implementation(libs.androidx.navigation.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -61,6 +61,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.navigation:navigation-compose:2.7.7")
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
@@ -71,4 +72,13 @@ dependencies {
     implementation(libs.logging.interceptor)
     implementation(libs.mpandroidchart)
     implementation("androidx.work:work-runtime-ktx:${work_version}")
+    // Import the Firebase BoM
+    implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
+    // TODO: Add the dependencies for Firebase products you want to use
+    // When using the BoM, don't specify versions in Firebase dependencies
+    // https://firebase.google.com/docs/android/setup#available-libraries
+    implementation("com.google.firebase:firebase-auth")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("androidx.compose.material:material-icons-extended:1.6.8")
 }

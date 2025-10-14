@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
 import androidx.compose.foundation.background
@@ -9,38 +11,186 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fit5046_lab4_group3_ass2.data.ProfileRepo
+import com.example.fit5046_lab4_group3_ass2.data.UserProfile
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.google.firebase.auth.FirebaseAuth
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-/* ------------------------------- SCAFFOLD ------------------------------- */
+/* ───────────── ROUTE / CONTAINER ───────────── */
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileRoute(
+    onBack: () -> Unit = {},
+    onNotifications: () -> Unit = {},
+    onEditProfile: () -> Unit = {},
+    // NAV for bottom bar from Profile
+    onTabSelected: (route: String) -> Unit = {}
+) {
+    val snackbar = remember { SnackbarHostState() }
+    val auth = remember { FirebaseAuth.getInstance() }
+
+    var loading by remember { mutableStateOf(true) }
+    var profile by remember { mutableStateOf<UserProfile?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    // Fetch profile on first composition
+    LaunchedEffect(Unit) {
+        ProfileRepo.get { res ->
+            res.onSuccess { p ->
+                profile = p
+                loading = false
+            }.onFailure { e ->
+                error = e.message ?: "Failed to load profile."
+                loading = false
+            }
+        }
+    }
+
+    fun reload() {
+        error = null
+        loading = true
+        ProfileRepo.get { res ->
+            res.onSuccess { p -> profile = p; loading = false }
+                .onFailure { e -> error = e.message ?: "Failed to load profile."; loading = false }
+        }
+    }
+
+    // When user toggles reminders, update Firestore doc
+    fun updateElectricityReminders(checked: Boolean) {
+        val current = profile ?: UserProfile()
+        val updated = current.copy(energyTips = checked)
+        ProfileRepo.upsert(updated) { res ->
+            res.onSuccess { profile = updated }
+                .onFailure { e ->
+                    profile = current // revert
+                    error = e.message ?: "Failed to update setting."
+                }
+        }
+    }
+
+    // Loading
+    if (loading) {
+        Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text("Profile") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+            },
+            bottomBar = {
+                EcoBottomBar(currentRoute = ROUTE_PROFILE, onTabSelected = onTabSelected)
+            }
+        ) { inner ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(inner),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        }
+        return
+    }
+
+    // Error
+    if (error != null) {
+        Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text("Profile") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+            },
+            snackbarHost = { SnackbarHost(snackbar) },
+            bottomBar = {
+                EcoBottomBar(currentRoute = ROUTE_PROFILE, onTabSelected = onTabSelected)
+            }
+        ) { inner ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(inner),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(error!!, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = { reload() }) { Text("Retry") }
+                }
+            }
+        }
+        return
+    }
+
+    // Derive UI fields (with sensible fallbacks)
+    val firebaseUser = auth.currentUser
+    val email = profile?.email?.ifBlank { firebaseUser?.email.orEmpty() } ?: firebaseUser?.email.orEmpty()
+    val name = profile?.name?.ifBlank { profile?.dashboardName ?: email.substringBefore("@") }
+        ?: email.substringBefore("@")
+    val memberSince = firebaseUser?.metadata?.creationTimestamp
+        ?.let { ts -> SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(Date(ts)) }
+        ?: ""
+
+    val householdSize = profile?.householdSize ?: 0
+    val location = profile?.state ?: ""
+    val electricityReminders = profile?.energyTips ?: true
+    val avatarEmoji = profile?.avatar ?: "🌳"
+
+    ProfileScreen(
+        name = name,
+        email = email,
+        memberSince = memberSince,
+        avatarEmoji = avatarEmoji,
+        householdSize = householdSize,
+        location = location,
+        electricityReminders = electricityReminders,
+        themeLabel = "System",
+        onBack = onBack,
+        onNotifications = onNotifications,
+        onEditProfile = onEditProfile,
+        onToggleElectricity = ::updateElectricityReminders,
+        ecoPoints = 0,
+        // NAV
+        currentRoute = ROUTE_PROFILE,
+        onTabSelected = onTabSelected
+    )
+}
+
+/* ───────────── PRESENTATIONAL UI ───────────── */
+
 @Composable
 fun ProfileScreen(
     // Account
     name: String,
     email: String,
     memberSince: String,
-    avatarUrl: String? = null,
+    avatarEmoji: String? = null,
 
     // Household
     householdSize: Int,
@@ -63,17 +213,12 @@ fun ProfileScreen(
     onTapAbout: () -> Unit = {},
 
     // Stats
-    ecoPoints: Int
-) {
-    // Bottom nav (consistent with other screens)
-    val navItems = listOf(
-        "Home" to Icons.Filled.Home,
-        "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,
-        "Rewards" to Icons.Filled.Star,   // plural for consistency
-        "Profile" to Icons.Filled.AccountCircle
-    )
+    ecoPoints: Int,
 
+    // NAV
+    currentRoute: String = ROUTE_PROFILE,
+    onTabSelected: (route: String) -> Unit = {}
+) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -84,7 +229,6 @@ fun ProfileScreen(
                     }
                 },
                 actions = {
-                    // Bell + unread dot (same pattern as Achievements/Home)
                     Box {
                         IconButton(onClick = onNotifications) {
                             Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
@@ -101,23 +245,17 @@ fun ProfileScreen(
             )
         },
         bottomBar = {
-            NavigationBar {
-                navItems.forEachIndexed { index, (label, icon) ->
-                    NavigationBarItem(
-                        selected = index == 4,     // Profile selected
-                        onClick = { /* UI only */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
-                    )
-                }
-            }
+            EcoBottomBar(
+                currentRoute = currentRoute,
+                onTabSelected = onTabSelected
+            )
         }
     ) { inner ->
         ProfileContent(
             name = name,
             email = email,
             memberSince = memberSince,
-            avatarUrl = avatarUrl,
+            avatarEmoji = avatarEmoji,
             householdSize = householdSize,
             location = location,
             focus = focus,
@@ -145,7 +283,7 @@ private fun ProfileContent(
     name: String,
     email: String,
     memberSince: String,
-    avatarUrl: String?,
+    avatarEmoji: String?,
     householdSize: Int,
     location: String,
     focus: String,
@@ -167,12 +305,12 @@ private fun ProfileContent(
         modifier = modifier.padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Header (Card for consistency)
+        // Header
         item {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        AvatarPlaceholder(avatarUrl = avatarUrl, size = 56.dp)
+                        AvatarPlaceholder(avatarEmoji = avatarEmoji, size = 56.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -199,7 +337,7 @@ private fun ProfileContent(
             }
         }
 
-        // Household Details (tonal like other summary sections)
+        // Household Details
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -212,7 +350,7 @@ private fun ProfileContent(
                     Spacer(Modifier.height(6.dp))
                     InfoKeyValue("Location", valueOrDash(location))
                     Spacer(Modifier.height(6.dp))
-                    InfoKeyValue("Focus", valueOrDash(focus))   // Electricity
+                    InfoKeyValue("Focus", valueOrDash(focus))
                 }
             }
         }
@@ -286,15 +424,20 @@ private fun ProfileContent(
 /* ----------------------------- Reusables ----------------------------- */
 
 @Composable
-private fun AvatarPlaceholder(avatarUrl: String?, size: Dp = 56.dp) {
-    // UI-only placeholder (no image loading)
+private fun AvatarPlaceholder(avatarEmoji: String?, size: Dp = 56.dp) {
     Box(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-            .background(MaterialTheme.colorScheme.surface)
-    )
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center
+    ) {
+        val emoji = avatarEmoji?.takeIf { it.isNotBlank() }
+        if (emoji != null) {
+            Text(emoji, fontSize = 24.sp)
+        }
+    }
 }
 
 private fun valueOrDash(value: String) = if (value.isBlank()) "—" else value
@@ -368,9 +511,9 @@ fun Preview_Profile_Filled() {
             name = "Sarah Johnson",
             email = "sarah.johnson@email.com",
             memberSince = "Jan 2025",
-            avatarUrl = null,
+            avatarEmoji = "🌳",
             householdSize = 4,
-            location = "Melbourne, Australia",
+            location = "VIC",
             focus = "Electricity",
             electricityReminders = electricity,
             themeLabel = "Light",
@@ -385,12 +528,11 @@ fun Preview_Profile_Filled() {
 fun Preview_Profile_Empty() {
     var electricity by remember { mutableStateOf(false) }
     FIT5046Lab4Group3ass2Theme {
-        // Empty name/email shows the “Set Up Profile” CTA and dashes in details
         ProfileScreen(
             name = "",
             email = "",
             memberSince = "",
-            avatarUrl = null,
+            avatarEmoji = null,
             householdSize = 0,
             location = "",
             focus = "Electricity",

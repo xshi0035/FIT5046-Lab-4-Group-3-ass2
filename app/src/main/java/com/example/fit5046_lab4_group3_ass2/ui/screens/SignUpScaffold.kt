@@ -1,27 +1,36 @@
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
+import android.util.Patterns
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.example.fit5046_lab4_group3_ass2.R
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 
@@ -29,13 +38,14 @@ import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SignUpScaffold() {
+fun SignUpScaffold(
+    onGoToLogin: () -> Unit = {}     // <- any “Login / Sign in” action routes here
+) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("EcoTrack") },
                 navigationIcon = {
-                    // Small circular logo (same as other pages)
                     Box(
                         modifier = Modifier
                             .padding(start = 8.dp)
@@ -52,7 +62,7 @@ fun SignUpScaffold() {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* UI-only */ }) {
+                    IconButton(onClick = { /* optional */ }) {
                         Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                     }
                 }
@@ -64,7 +74,7 @@ fun SignUpScaffold() {
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            SignUpScreen()
+            SignUpScreen(onGoToLogin = onGoToLogin)
         }
     }
 }
@@ -72,14 +82,62 @@ fun SignUpScaffold() {
 /* --------------------------------- SCREEN ---------------------------------- */
 
 @Composable
-private fun SignUpScreen() {
+private fun SignUpScreen(
+    onGoToLogin: () -> Unit
+) {
+    // state
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+    var tosChecked by rememberSaveable { mutableStateOf(false) }
+    var loading by rememberSaveable { mutableStateOf(false) }
+
+    // inline validation state
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var tosError by remember { mutableStateOf<String?>(null) }
+    var serverError by remember { mutableStateOf<String?>(null) }
+
+    // success dialog
+    var showSuccess by remember { mutableStateOf(false) }
+
+    val focus = LocalFocusManager.current
+    val scroll = rememberScrollState()
+
+    fun validateEmail(now: String = email) {
+        emailError = when {
+            now.isEmpty() -> "Email is required."
+            !Patterns.EMAIL_ADDRESS.matcher(now).matches() -> "Please enter a valid email."
+            else -> null
+        }
+    }
+
+    fun validatePassword(now: String = password) {
+        passwordError = when {
+            now.isEmpty() -> "Password is required."
+            now.length < 8 -> "Password must be at least 8 characters."
+            else -> null
+        }
+    }
+
+    fun validateTos() {
+        tosError = if (!tosChecked) "Please agree to the Terms and Privacy Policy." else null
+    }
+
+    fun allValid(): Boolean {
+        validateEmail()
+        validatePassword()
+        validateTos()
+        return emailError == null && passwordError == null && tosError == null
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .verticalScroll(scroll)
+            .imePadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Spacer(Modifier.height(16.dp))
-
         // HERO logo
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Box(
@@ -99,7 +157,6 @@ private fun SignUpScreen() {
         }
 
         Spacer(Modifier.height(12.dp))
-
         Text(
             "Create Account",
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
@@ -116,9 +173,7 @@ private fun SignUpScreen() {
         )
 
         Spacer(Modifier.height(16.dp))
-
-        // Segmented tabs – "Sign Up" selected (UI-only)
-        SegmentedTabsSignUp()
+        SegmentedTabsSignUp(onLoginClick = onGoToLogin)
 
         Spacer(Modifier.height(20.dp))
 
@@ -126,10 +181,15 @@ private fun SignUpScreen() {
         Text("Email Address", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            readOnly = true, // UI-only
+            value = email,
+            onValueChange = {
+                email = it
+                // live validation as user types (if error already shown)
+                if (emailError != null) validateEmail(it)
+            },
             singleLine = true,
+            isError = emailError != null,
+            supportingText = { emailError?.let { msg -> Text(msg, color = MaterialTheme.colorScheme.error) } },
             placeholder = { Text("example@domain.com") },
             trailingIcon = { Icon(Icons.Filled.Email, contentDescription = "Email") },
             shape = RoundedCornerShape(12.dp),
@@ -142,91 +202,152 @@ private fun SignUpScreen() {
         Text("Password", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            readOnly = true,              // UI-only
-            singleLine = true,
-            placeholder = { Text("Create a password") },
-            trailingIcon = {
-                Icon(
-                    painter = painterResource(id = R.drawable.show_password_icon),
-                    contentDescription = "Show password",
-                    modifier = Modifier.size(22.dp),
-                    tint = Color.Unspecified
-                )
+            value = password,
+            onValueChange = {
+                password = it
+                if (passwordError != null) validatePassword(it)
             },
-            shape = RoundedCornerShape(12.dp),
+            singleLine = true,
+            isError = passwordError != null,
+            supportingText = { passwordError?.let { msg -> Text(msg, color = MaterialTheme.colorScheme.error) } },
+            placeholder = { Text("Create a password") },
+            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { showPassword = !showPassword }) {
+                    val iconRes =
+                        if (showPassword) R.drawable.show_password_icon
+                        else R.drawable.hide_password_icon
+                    Icon(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = if (showPassword) "Hide password" else "Show password",
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            },
+            shape = RoundedCornerShape(11.dp),
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Strength bar + label (static UI)
+        // Strength bar
         Spacer(Modifier.height(8.dp))
+        val strength = (password.length.coerceAtMost(12)) / 12f
         Row(verticalAlignment = Alignment.CenterVertically) {
-            LinearProgressIndicator(
-                progress = { 0.25f }, // static "Weak"
-                modifier = Modifier
-                    .weight(1f)
-                    .height(6.dp)
-            )
+            LinearProgressIndicator(progress = { strength }, modifier = Modifier.weight(1f).height(6.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Weak", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text(
+                when {
+                    password.length >= 10 -> "Strong"
+                    password.length >= 8 -> "Medium"
+                    else -> "Weak"
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp
+            )
         }
 
-        // Password tips (UI-only)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         PasswordTip("At least 8 characters")
         PasswordTip("Uppercase and lowercase letters")
         PasswordTip("At least one number")
         PasswordTip("At least one special symbol")
 
         Spacer(Modifier.height(16.dp))
-
-        // ToS checkbox line (UI-only)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = false, onCheckedChange = null, enabled = false)
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "I agree to the Terms of Service and Privacy Policy",
-                style = MaterialTheme.typography.bodySmall
+            Checkbox(
+                checked = tosChecked,
+                onCheckedChange = {
+                    tosChecked = it
+                    if (tosError != null) validateTos()
+                }
             )
+            Spacer(Modifier.width(6.dp))
+            Text("I agree to the Terms of Service and Privacy Policy", style = MaterialTheme.typography.bodySmall)
+        }
+        tosError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+        // server error (e.g., email already in use)
+        serverError?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, color = MaterialTheme.colorScheme.error)
         }
 
         Spacer(Modifier.height(12.dp))
-
-        // Create Account button
         Button(
-            onClick = { /* UI-only */ },
+            onClick = {
+                focus.clearFocus()
+                serverError = null
+                if (!allValid()) return@Button
+                loading = true
+                // AuthRepo is in this same package. If not, import it.
+                AuthRepo.signUp(email.trim(), password) { res ->
+                    loading = false
+                    res.onSuccess {
+                        showSuccess = true         // show success dialog
+                    }.onFailure { e ->
+                        serverError = e.message ?: "Sign up failed."
+                    }
+                }
+            },
+            enabled = !loading,
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp)
         ) {
-            Text("Create Account", fontWeight = FontWeight.Medium)
+            if (loading) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+            else Text("Create Account", fontWeight = FontWeight.Medium)
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(24.dp))
 
-        // Link back to login
+        // “Already have an account? Sign in”
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(bottom = 24.dp),
             horizontalArrangement = Arrangement.Center
         ) {
             Text("Already have an account? ")
             Text(
                 text = "Sign in",
                 color = MaterialTheme.colorScheme.primary,
-                textDecoration = TextDecoration.Underline
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable { onGoToLogin() }
             )
         }
+
+        Spacer(Modifier.height(24.dp)) // breathing room at bottom
+    }
+
+    // Success dialog => always go to Login (also when dismissed)
+    if (showSuccess) {
+        AlertDialog(
+            onDismissRequest = {
+                showSuccess = false
+                onGoToLogin()
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSuccess = false
+                        onGoToLogin()
+                    }
+                ) { Text("Go to Login") }
+            },
+            title = { Text("Account created") },
+            text = { Text("Your EcoTrack account was created successfully.") },
+            properties = DialogProperties(dismissOnClickOutside = true)
+        )
     }
 }
 
 /* ----------------------------- COMPONENTS ---------------------------------- */
 
 @Composable
-private fun SegmentedTabsSignUp() {
+private fun SegmentedTabsSignUp(
+    onLoginClick: () -> Unit
+) {
     val container = MaterialTheme.colorScheme.surfaceVariant
     val selected = MaterialTheme.colorScheme.surface
 
@@ -237,24 +358,21 @@ private fun SegmentedTabsSignUp() {
             .padding(4.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // Login (unselected)
+            // “Login” tab → navigates to Login
             Surface(
                 color = container,
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp)
+                    .clickable { onLoginClick() }
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Text(
-                        "Login",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Text("Login", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
                 }
             }
             Spacer(Modifier.width(6.dp))
-            // Sign Up (selected)
+            // Selected “Sign Up”
             Surface(
                 color = selected,
                 shape = RoundedCornerShape(10.dp),
@@ -283,7 +401,5 @@ private fun PasswordTip(text: String) {
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun SignUpPreview() {
-    FIT5046Lab4Group3ass2Theme {
-        SignUpScaffold()
-    }
+    FIT5046Lab4Group3ass2Theme { SignUpScaffold() }
 }

@@ -1,27 +1,21 @@
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,16 +35,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 fun AddApplianceScaffold(
     onBack: () -> Unit = {},
     onSave: (name: String, watt: Int, hours: Float, category: String) -> Unit = { _,_,_,_ -> },
-    onCancel: () -> Unit = {}
+    onCancel: () -> Unit = {},
+    // NAV
+    currentRoute: String = ROUTE_APPLIANCES,
+    onTabSelected: (route: String) -> Unit = {}
 ) {
-    val navItems: List<Pair<String, ImageVector>> = listOf(
-        "Home" to Icons.Filled.Home,
-        "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,
-        "Rewards" to Icons.Filled.Star,
-        "Profile" to Icons.Filled.AccountCircle
-    )
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -78,16 +67,10 @@ fun AddApplianceScaffold(
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                navItems.forEachIndexed { index, (label, icon) ->
-                    NavigationBarItem(
-                        selected = index == 1, // Appliances selected
-                        onClick = { /* UI only */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
-                    )
-                }
-            }
+            EcoBottomBar(
+                currentRoute = currentRoute,
+                onTabSelected = onTabSelected
+            )
         }
     ) { inner ->
         AddApplianceContent(
@@ -174,7 +157,6 @@ private fun AddApplianceContent(
 
                 Spacer(Modifier.height(8.dp))
 
-
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -240,7 +222,9 @@ private fun AddApplianceContent(
             Row(Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = onCancel,
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) { Text("Cancel") }
 
@@ -249,7 +233,9 @@ private fun AddApplianceContent(
                 Button(
                     onClick = { onSave(name.trim(), watt, hours, category) },
                     enabled = saveEnabled,
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) { Text("Save Appliance") }
             }

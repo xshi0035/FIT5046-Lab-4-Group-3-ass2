@@ -14,6 +14,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -21,7 +22,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.fit5046_lab4_group3_ass2.data.ProfileRepo
+import com.example.fit5046_lab4_group3_ass2.data.UserPrefs
+import com.example.fit5046_lab4_group3_ass2.ui.screens.*
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val ecoTrackScreenViewModel: EcoTrackScreenViewModel by viewModels()
@@ -34,58 +43,187 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FIT5046Lab4Group3ass2Theme {
-                BottomNavigationBar(ecoTrackScreenViewModel)
+                AppNav(ecoTrackScreenViewModel)
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BottomNavigationBar(viewModel: EcoTrackScreenViewModel) {
-    val navController = rememberNavController()
-    Scaffold(
-        bottomBar = {
-            NavigationBar(
-                modifier = Modifier.padding(bottom = 20.dp),
-            ) {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-                Destination.entries.forEach { destination ->
-                    NavigationBarItem(
-                        icon = {
-                            Icon(
-                                destination.icon,
-                                contentDescription = destination.label
-                            )
-                        },
-                        label = { Text(destination.label) },
-                        selected = currentDestination?.route == destination.route,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
+private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
+    val nav = rememberNavController()
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+
+    fun goHome() {
+        nav.navigate(ROUTE_HOME) {
+            launchSingleTop = true
+            popUpTo(ROUTE_HOME) { inclusive = false; saveState = true }
+            restoreState = true
+        }
+    }
+
+    fun onTab(route: String) {
+        nav.navigate(route) {
+            launchSingleTop = true
+            popUpTo(ROUTE_HOME) { inclusive = false; saveState = true }
+            restoreState = true
+        }
+    }
+
+    NavHost(
+        navController = nav,
+        startDestination = "login",
+        modifier = Modifier.padding()
+    ) {
+        /* -------------------- Auth / Onboarding flow -------------------- */
+
+        composable("login") {
+            LoginScaffold(
+                onLoginSuccess = {
+                    scope.launch {
+                        val onboarded = UserPrefs.isOnboarded(ctx)
+                        if (!onboarded) {
+                            nav.navigate("home_start") {
+                                popUpTo("login") { inclusive = true }
                                 launchSingleTop = true
-                                restoreState = true
+                            }
+                        } else {
+                            ProfileRepo.exists { res ->
+                                val hasProfile = res.getOrElse { false }
+                                nav.navigate(if (hasProfile) ROUTE_HOME else "profile_setup") {
+                                    popUpTo("login") { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
                         }
-                    )
-                }
-            }
+                    }
+                },
+                onGoToSignUp = { nav.navigate("signup") }
+            )
         }
-    ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = Destination.ECOTRACK.route,
-            modifier = Modifier.padding(paddingValues)
-        ) {
-            /*composable(Destination.HOME.route) { HomeScreen() }
-            composable(Destination.HISTORY.route) { AppliancesScreen() }*/
-            composable(Destination.ECOTRACK.route) { com.example.fit5046_lab4_group3_ass2.EcoTrackScaffold(viewModel = viewModel) }/*
-            composable(Destination.PROFILE.route) { RewardsScreen() }
-            composable(Destination.PROFILE.route) { ProfileScreen() }*/
 
+        composable("signup") {
+            SignUpScaffold(
+                onGoToLogin = {
+                    nav.navigate("login") {
+                        popUpTo("signup") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        // Starting page (no bottom bar in this screen)
+        composable("home_start") {
+            HomeScaffold(
+                onNotificationsClick = { /* optional */ },
+                onGetStartedClick = {
+                    scope.launch {
+                        UserPrefs.setOnboarded(ctx, true)
+                        nav.navigate("profile_setup") {
+                            popUpTo("home_start") { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            )
+        }
+
+        // Profile setup (no bottom bar in this screen). On save -> Home tab.
+        composable("profile_setup") {
+            ProfileScaffold(
+                onSaved = {
+                    nav.navigate(ROUTE_HOME) {
+                        popUpTo("profile_setup") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        /* ---------------------- Main tab destinations ------------------- */
+
+        composable(ROUTE_HOME) {
+            HomePageScaffold(
+                currentRoute = ROUTE_HOME,
+                onTabSelected = ::onTab,
+                onAddAppliance = { nav.navigate(ROUTE_APPLIANCES) },
+                onOpenEcoTrack = { nav.navigate(ROUTE_ECOTRACK) },
+                onViewTips = { nav.navigate("tips") },
+                onViewRewards = { nav.navigate(ROUTE_REWARDS) }
+            )
+        }
+
+        composable(ROUTE_APPLIANCES) {
+            ElectricityScaffold(
+                currentRoute = ROUTE_APPLIANCES,
+                onTabSelected = ::onTab,
+                onBack = ::goHome
+            )
+        }
+
+        // (Optional) separate add form route; keep if you use it
+        composable("appliance_add") {
+            AddApplianceScaffold(
+                onBack = ::goHome,
+                currentRoute = ROUTE_APPLIANCES,
+                onTabSelected = ::onTab
+            )
+        }
+
+        composable(ROUTE_ECOTRACK) {
+            com.example.fit5046_lab4_group3_ass2.EcoTrackScaffold(
+                /*currentRoute = ROUTE_ECOTRACK,
+                onTabSelected = ::onTab,
+                onBack = ::goHome,*/
+                viewModel = ecoTrackScreenViewModel
+            )
+        }
+
+        composable(ROUTE_REWARDS) {
+            AchievementsScaffold(
+                totalPoints = 2_847,
+                electricityPoints = 1_523,
+                badges = listOf(
+                    Badge("Peak Shaver", "Avoided peak-hour usage for 7 days", "Jan 15"),
+                    Badge("100 kWh Saved", "Reduced electricity consumption", "Jan 10")
+                ),
+                leaderboard = listOf(
+                    LeaderboardEntry(rank = 7, name = "Your Rank", points = 2_847, isYou = true),
+                    LeaderboardEntry(rank = 1, name = "PowerSaverPro", points = 4_892),
+                    LeaderboardEntry(rank = 2, name = "GreenThumb_42", points = 4_156),
+                    LeaderboardEntry(rank = 3, name = "WattWatcher", points = 3_924)
+                ),
+                monthly = MonthlyProgress(
+                    pointsThisMonth = 847,
+                    badgesEarned = 3,
+                    daysActive = 18,
+                    daysInMonth = 31,
+                    monthlyGoal = 1000
+                ),
+                currentRoute = ROUTE_REWARDS,
+                onTabSelected = ::onTab,
+                onBack = ::goHome
+            )
+        }
+
+        composable(ROUTE_PROFILE) {
+            ProfileRoute(
+                onBack = ::goHome,
+                onNotifications = { /* optional */ },
+                onEditProfile = { nav.navigate("profile_setup") },
+                onTabSelected = ::onTab
+            )
+        }
+
+        /* ---------------------- Non-tab page with bar ------------------- */
+        composable("tips") {
+            TipsScaffold(
+                onBack = ::goHome,
+                onNotifications = { /* optional */ },
+                onTabSelected = ::onTab
+            )
         }
     }
 }
