@@ -206,7 +206,7 @@ fun EcoTrackScreen(
         }
 
         //item { ChartPlaceholderCard() }
-        item {LineChartScreen()}
+        item {LineChartScreen(viewModel)}
 
         item {
             Row(
@@ -513,15 +513,32 @@ private fun ImpactLine(label: String, valueRight: String) {
 }
 
 @Composable
-fun LineChartScreen() {
-    val lineEntries = listOf(
-        Entry(0f, 1070f),
-        Entry(1f, 4050f),
-        Entry(2f, 3890f),
-        Entry(3f, 5599f),
-        Entry(4f, 2300f),
-        Entry(5f, 4055f)
-    )
+fun LineChartScreen(viewModel: EcoTrackScreenViewModel) {
+    val flow = viewModel.allDayUses
+
+    val dayUseList by flow.collectAsState(initial = emptyList())
+
+    val lineEntries : List<Entry>
+
+    if (!dayUseList.isEmpty()) {
+        Log.e("DAY USE CHART DEBUG LIST", dayUseList.toString())
+
+        lineEntries = dayUseList.map { dayUse ->
+            Entry(dayUse.uid.toFloat(), dayUse.use)
+        }
+
+        Log.e("DAY USE CHART DEBUG ENTRIES", lineEntries.toString())
+    } else {
+        lineEntries = listOf(
+            Entry(0f, 1070f),
+            Entry(1f, 4050f),
+            Entry(2f, 3890f),
+            Entry(3f, 5599f),
+            Entry(4f, 2300f),
+            Entry(5f, 4055f)
+        )
+    }
+
     val lineDataSet = LineDataSet(lineEntries, "Steps")
     lineDataSet.colors = ColorTemplate.COLORFUL_COLORS.toList()
     val lineData = LineData(lineDataSet)

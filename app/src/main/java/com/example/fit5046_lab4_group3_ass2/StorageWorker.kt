@@ -29,12 +29,14 @@ class StorageWorker(appContext: Context, workerParams: WorkerParameters) :
 
         val helper = Storage(applicationContext, sensorRepo, itemsRepo, dayUseRepo)
 
+        val info_for_notification = helper.getNotificationInfo()
+
         //send test notification
         createNotificationChannel()
         var builder = NotificationCompat.Builder(applicationContext, "EcoTrack")
             .setSmallIcon(R.drawable.outline_info_24)
             .setContentTitle("EcoTrack Info")
-            .setContentText("Notification from EcoTrack")
+            .setContentText(info_for_notification[0].toString())
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
 
         val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

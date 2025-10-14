@@ -42,4 +42,25 @@ class Storage(
 
         dayUseRepository.insert(dayUse)
     }
+
+    suspend fun getNotificationInfo(): Array<Float> {
+        val latest = withTimeoutOrNull(5_000L) {
+            sensorRepository.getSensorData().first { it != "0" }
+        } ?: sensorRepository.getSensorData().value
+
+        val marketResponse = try {
+            itemsRepository.customSearch()
+        } catch (e: Exception) {
+            MarketResponse()
+        }
+
+        val price = if (marketResponse.data.isNotEmpty()) {
+            marketResponse.data[0].results[0].data
+                .last { it.size > 1 && it[1] is Number }[1].toString().toFloat()
+        } else {
+            0f
+        }
+
+        return arrayOf(latest.toFloat(), price)
+    }
 }
