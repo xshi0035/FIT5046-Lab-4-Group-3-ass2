@@ -8,12 +8,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -68,22 +63,18 @@ private val demoSuggestions = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ElectricityScaffold() {
-    // Public types only (keep consistent with other screens)
-    val navItems: List<Pair<String, ImageVector>> = listOf(
-        "Home" to Icons.Filled.Home,
-        "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,
-        "Rewards" to Icons.Filled.Star,
-        "Profile" to Icons.Filled.AccountCircle,
-    )
-
+fun ElectricityScaffold(
+    // NAV
+    currentRoute: String = ROUTE_APPLIANCES,
+    onTabSelected: (route: String) -> Unit = {},
+    onBack: () -> Unit = {}
+) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Appliances") },
                 navigationIcon = {
-                    IconButton(onClick = { /* UI-only back */ }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -105,16 +96,10 @@ fun ElectricityScaffold() {
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                navItems.forEachIndexed { index, (label, icon) ->
-                    NavigationBarItem(
-                        selected = index == 1, // Appliances selected (UI-only)
-                        onClick = { /* no-op */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
-                    )
-                }
-            }
+            EcoBottomBar(
+                currentRoute = currentRoute,
+                onTabSelected = onTabSelected
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { /* no-op */ }) {
@@ -156,7 +141,7 @@ fun ElectricityScreen(
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
     ) {
-        // "Today's Usage" — card title & supporting follow app typography rules
+        // "Today's Usage"
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -196,7 +181,7 @@ fun ElectricityScreen(
             }
         }
 
-        // My Appliances header (titleMedium like other section headers)
+        // My Appliances header
         item {
             Row(
                 modifier = Modifier

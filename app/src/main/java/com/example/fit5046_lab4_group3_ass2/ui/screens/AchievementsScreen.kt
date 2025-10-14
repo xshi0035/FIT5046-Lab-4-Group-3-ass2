@@ -7,15 +7,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -65,17 +60,12 @@ fun AchievementsScaffold(
     badges: List<Badge>,
     leaderboard: List<LeaderboardEntry>,
     monthly: MonthlyProgress,
-    onBack: () -> Unit = {},
+    // NAVIGATION
+    currentRoute: String = ROUTE_REWARDS,
+    onTabSelected: (route: String) -> Unit = {},
+    onBack: () -> Unit = {},                 // should go to Home
     onNotifications: () -> Unit = {}
 ) {
-    val navItems = listOf(
-        "Home" to Icons.Filled.Home,
-        "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,
-        "Reward" to Icons.Filled.Star,
-        "Profile" to Icons.Filled.AccountCircle
-    )
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -103,16 +93,10 @@ fun AchievementsScaffold(
             )
         },
         bottomBar = {
-            NavigationBar {
-                navItems.forEachIndexed { index, (label, icon) ->
-                    NavigationBarItem(
-                        selected = index == 3,      // Reward tab selected
-                        onClick = { /* no-op */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
-                    )
-                }
-            }
+            EcoBottomBar(
+                currentRoute = currentRoute,
+                onTabSelected = onTabSelected
+            )
         }
     ) { inner ->
         AchievementsContent(
@@ -427,7 +411,12 @@ private fun RankAvatar(rank: Int, isYou: Boolean) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(Icons.Filled.Person, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
+                Icon(
+                    Icons.Filled.Person,
+                    contentDescription = null,
+                    tint = fg,
+                    modifier = Modifier.size(16.dp)
+                )
                 Text("#$rank", color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
