@@ -10,7 +10,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -19,47 +20,61 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.example.fit5046_lab4_group3_ass2.data.UserProfile
+import com.example.fit5046_lab4_group3_ass2.data.ProfileRepo
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
 /* ------------------------------- SCAFFOLD ---------------------------------- */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScaffold(startStep: Int = 1) {
+fun ProfileScaffold(
+    startStep: Int = 1,
+    onSaved: () -> Unit = {}
+) {
     // 1..2
     var step by rememberSaveable { mutableStateOf(startStep.coerceIn(1, 2)) }
+    val snackbarHost = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
-    // Public pairs to avoid private-type lint errors
-    val navItems: List<Pair<String, ImageVector>> = listOf(
-        "Home" to Icons.Filled.Home,
-        "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,
-        "Rewards" to Icons.Filled.Star,      // plural for consistency across app
-        "Profile" to Icons.Filled.AccountCircle,
-    )
+    // ---------------- Form state shared across steps ----------------
+    var name by rememberSaveable { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
+    var dob by rememberSaveable { mutableStateOf("") }                    // "yyyy-MM-dd"
+
+    var householdSize by rememberSaveable { mutableStateOf("1") }
+    var homeType by rememberSaveable { mutableStateOf("Apartment") }
+
+    var state by rememberSaveable { mutableStateOf("VIC") }
+    var electricityProvider by rememberSaveable { mutableStateOf("") }
+    var energyTips by rememberSaveable { mutableStateOf(true) }
+    var weeklySummary by rememberSaveable { mutableStateOf(true) }
+    var motivationStyle by rememberSaveable { mutableStateOf("Balanced") }
+    var dashboardName by rememberSaveable { mutableStateOf("") }
+    var avatar by rememberSaveable { mutableStateOf("🌳") }
+
+    var saving by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Set Up Profile") },
                 navigationIcon = {
-                    IconButton(onClick = { /* UI only */ }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    IconButton(
+                        onClick = { if (step > 1) step-- }
+                    ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
-                    // Notifications bell with unread dot (same pattern as Home/Rewards)
+                    // Notifications bell with unread dot (UI-only)
                     Box {
-                        IconButton(onClick = { /* UI only */ }) {
+                        IconButton(onClick = { /* optional */ }) {
                             Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                         }
                         Box(
@@ -73,18 +88,8 @@ fun ProfileScaffold(startStep: Int = 1) {
                 }
             )
         },
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                navItems.forEachIndexed { index, (label, icon) ->
-                    NavigationBarItem(
-                        selected = index == 4,  // Profile selected (UI-only)
-                        onClick = { /* UI only */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
-                    )
-                }
-            }
-        }
+        snackbarHost = { SnackbarHost(snackbarHost) },
+        bottomBar = { /* your bottom bar if needed */ }
     ) { inner ->
         Surface(
             modifier = Modifier
@@ -93,9 +98,61 @@ fun ProfileScaffold(startStep: Int = 1) {
         ) {
             ProfileSetup(
                 step = step,
+                // STEP 1 contents use bound states
+                name = name, onName = { name = it },
+                email = email, onEmail = { email = it },
+                dob = dob, onDob = { dob = it },
+                householdSize = householdSize, onHouseholdSize = { s ->
+                    householdSize = s.filter { c -> c.isDigit() }.ifEmpty { "0" }
+                },
+                homeType = homeType, onHomeType = { homeType = it },
+
+                // STEP 2 contents use bound states
+                state = state, onState = { state = it },
+                electricityProvider = electricityProvider, onProvider = { electricityProvider = it },
+                energyTips = energyTips, onEnergyTips = { energyTips = it },
+                weeklySummary = weeklySummary, onWeeklySummary = { weeklySummary = it },
+                motivationStyle = motivationStyle, onMotivation = { motivationStyle = it },
+                dashboardName = dashboardName, onDashboardName = { dashboardName = it },
+                avatar = avatar, onAvatar = { avatar = it },
+
                 onStepPrev = { if (step > 1) step-- },
                 onStepNext = { if (step < 2) step++ },
                 onStepJump = { s -> step = s.coerceIn(1, 2) },
+
+                onSave = {
+                    // Simple validation
+                    val hh = householdSize.toIntOrNull()
+                    if (name.isBlank() || email.isBlank() || hh == null || hh <= 0) {
+                        scope.launch { snackbarHost.showSnackbar("Please fill all required fields.") }
+                        return@ProfileSetup
+                    }
+                    saving = true
+                    val payload = UserProfile(
+                        name = name.trim(),
+                        email = email.trim(),
+                        dob = dob,
+                        householdSize = hh,
+                        homeType = homeType,
+                        state = state,
+                        electricityProvider = electricityProvider.trim(),
+                        energyTips = energyTips,
+                        weeklySummary = weeklySummary,
+                        motivationStyle = motivationStyle,
+                        dashboardName = dashboardName.trim(),
+                        avatar = avatar
+                    )
+                    ProfileRepo.upsert(payload) { res ->
+                        saving = false
+                        res.onSuccess {
+                            scope.launch { snackbarHost.showSnackbar("Profile saved!") }
+                            onSaved()
+                        }.onFailure { e ->
+                            scope.launch { snackbarHost.showSnackbar(e.message ?: "Failed to save profile.") }
+                        }
+                    }
+                },
+                saving = saving
             )
         }
     }
@@ -132,7 +189,7 @@ private fun SmallText(text: String) {
     )
 }
 
-/** Step chips + progress bar (segmented look used elsewhere) */
+/** Step chips + progress bar */
 @Composable
 private fun SetupProgress(
     step: Int,           // 1..2
@@ -159,7 +216,6 @@ private fun SetupProgress(
             }
         }
         Spacer(Modifier.height(10.dp))
-        // Linear progress (lambda form for consistency with other screens)
         LinearProgressIndicator(
             progress = { step / total.toFloat() },
             modifier = Modifier
@@ -197,12 +253,31 @@ private fun StepChip(
     }
 }
 
+/* -------------------------- The main content --------------------------- */
+
 @Composable
-fun ProfileSetup(
+private fun ProfileSetup(
     step: Int,
+    // step 1
+    name: String, onName: (String) -> Unit,
+    email: String, onEmail: (String) -> Unit,
+    dob: String, onDob: (String) -> Unit,
+    householdSize: String, onHouseholdSize: (String) -> Unit,
+    homeType: String, onHomeType: (String) -> Unit,
+    // step 2
+    state: String, onState: (String) -> Unit,
+    electricityProvider: String, onProvider: (String) -> Unit,
+    energyTips: Boolean, onEnergyTips: (Boolean) -> Unit,
+    weeklySummary: Boolean, onWeeklySummary: (Boolean) -> Unit,
+    motivationStyle: String, onMotivation: (String) -> Unit,
+    dashboardName: String, onDashboardName: (String) -> Unit,
+    avatar: String, onAvatar: (String) -> Unit,
+
     onStepPrev: () -> Unit,
     onStepNext: () -> Unit,
     onStepJump: (Int) -> Unit,
+    onSave: () -> Unit,
+    saving: Boolean,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -217,9 +292,7 @@ fun ProfileSetup(
         }
 
         // Small helper text
-        item {
-            SmallText("* means the field is required to be filled in.")
-        }
+        item { SmallText("* means the field is required to be filled in.") }
 
         // STEP 1 ---------------------------------------------------------------
         if (step == 1) {
@@ -227,20 +300,18 @@ fun ProfileSetup(
             item {
                 SectionCard("User Information") {
                     OutlinedTextField(
-                        value = "",
-                        onValueChange = {},
+                        value = name, onValueChange = onName,
                         label = { SmallText("Name *") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
-                        value = "",
-                        onValueChange = {},
+                        value = email, onValueChange = onEmail,
                         label = { SmallText("Email *") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(12.dp))
-                    DisplayDatePicker()
+                    DisplayDatePicker(value = dob, onPicked = onDob)
                 }
             }
 
@@ -250,8 +321,7 @@ fun ProfileSetup(
                     SmallText("How many people live in your household?")
                     Spacer(Modifier.height(6.dp))
                     OutlinedTextField(
-                        value = "",
-                        onValueChange = {},
+                        value = householdSize, onValueChange = onHouseholdSize,
                         label = { SmallText("Number of people *") },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -264,7 +334,6 @@ fun ProfileSetup(
                     Spacer(Modifier.height(6.dp))
 
                     val homeOptions = listOf("Apartment", "Detached House", "Townhouse", "Other")
-                    var selectedHome by remember { mutableStateOf(homeOptions.first()) }
 
                     Column(Modifier.selectableGroup()) {
                         homeOptions.forEach { option ->
@@ -273,13 +342,13 @@ fun ProfileSetup(
                                     .fillMaxWidth()
                                     .height(48.dp)
                                     .selectable(
-                                        selected = (option == selectedHome),
-                                        onClick = { selectedHome = option },
+                                        selected = (option == homeType),
+                                        onClick = { onHomeType(option) },
                                         role = Role.RadioButton
                                     ),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                RadioButton(selected = option == selectedHome, onClick = null)
+                                RadioButton(selected = option == homeType, onClick = null)
                                 Spacer(Modifier.width(12.dp))
                                 Text(option, style = MaterialTheme.typography.bodyMedium)
                             }
@@ -292,18 +361,8 @@ fun ProfileSetup(
             item {
                 Row(Modifier.fillMaxWidth()) {
                     Button(
-                        onClick = { /* UI only */ },
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 5.dp),
-                        contentPadding = PaddingValues(12.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) { Text("Skip for Now") }
-                    Button(
                         onClick = onStepNext,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 5.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(12.dp),
                         shape = RoundedCornerShape(16.dp)
                     ) { Text("Next") }
@@ -318,13 +377,12 @@ fun ProfileSetup(
                 SectionCard("Location and Utility Information") {
                     SmallText("Select your state:")
                     Spacer(Modifier.height(6.dp))
-                    StateMenu()
+                    StateMenu(value = state, onValueChange = onState)
                     Spacer(Modifier.height(12.dp))
                     SmallText("Electricity Provider (e.g. AGL, Origin):")
                     Spacer(Modifier.height(6.dp))
                     OutlinedTextField(
-                        value = "",
-                        onValueChange = {},
+                        value = electricityProvider, onValueChange = onProvider,
                         label = { SmallText("Electricity Provider") },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -334,10 +392,14 @@ fun ProfileSetup(
             // Eco Preferences
             item {
                 SectionCard("Eco Preferences") {
-                    SmallText("Notification Preferences")
-                    Spacer(Modifier.height(8.dp))
-                    LabeledSwitch("Energy Tips *")
-                    LabeledSwitch("Weekly Progress Summary *")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        SmallText("Energy Tips *")
+                        Switch(checked = energyTips, onCheckedChange = onEnergyTips)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        SmallText("Weekly Progress Summary *")
+                        Switch(checked = weeklySummary, onCheckedChange = onWeeklySummary)
+                    }
 
                     Spacer(Modifier.height(16.dp))
                     Divider()
@@ -347,7 +409,6 @@ fun ProfileSetup(
                     Spacer(Modifier.height(6.dp))
 
                     val options = listOf("Financial Savings", "Environmental Impact", "Balanced")
-                    var selected by remember { mutableStateOf(options.first()) }
 
                     Column(Modifier.selectableGroup()) {
                         options.forEach { o ->
@@ -356,13 +417,13 @@ fun ProfileSetup(
                                     .fillMaxWidth()
                                     .height(48.dp)
                                     .selectable(
-                                        selected = (o == selected),
-                                        onClick = { selected = o },
+                                        selected = (o == motivationStyle),
+                                        onClick = { onMotivation(o) },
                                         role = Role.RadioButton
                                     ),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                RadioButton(selected = o == selected, onClick = null)
+                                RadioButton(selected = o == motivationStyle, onClick = null)
                                 Spacer(Modifier.width(12.dp))
                                 Text(o, style = MaterialTheme.typography.bodyMedium)
                             }
@@ -377,26 +438,30 @@ fun ProfileSetup(
                     SmallText("Name for Dashboard:")
                     Spacer(Modifier.height(6.dp))
                     OutlinedTextField(
-                        value = "",
-                        onValueChange = {},
+                        value = dashboardName, onValueChange = onDashboardName,
                         label = { SmallText("Dashboard Name") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(6.dp))
-                    SmallText("This name will be used in various parts of the app, such as motivational messages")
-
-                    Spacer(Modifier.height(16.dp))
                     SmallText("Set Profile Avatar:")
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth()) {
-                        val btnMod = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 5.dp)
-                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83C\uDF33") }
-                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("⚡") }
-                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83D\uDCA7") }
-                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83C\uDF3F") }
-                        Button(onClick = { }, modifier = btnMod, contentPadding = PaddingValues(0.dp)) { Text("\uD83C\uDF31") }
+                        listOf("🌳","⚡","💧","🌿","🌱").forEach { em ->
+                            val selected = avatar == em
+                            Button(
+                                onClick = { onAvatar(em) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 5.dp),
+                                contentPadding = PaddingValues(0.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor =
+                                        if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.secondaryContainer
+                                )
+                            ) { Text(em) }
+                        }
                     }
                 }
             }
@@ -413,13 +478,19 @@ fun ProfileSetup(
                         shape = RoundedCornerShape(16.dp)
                     ) { Text("Back") }
                     Button(
-                        onClick = { /* submit/save */ },
+                        onClick = onSave,
+                        enabled = !saving,
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 5.dp),
                         contentPadding = PaddingValues(12.dp),
                         shape = RoundedCornerShape(16.dp)
-                    ) { Text("Save & Continue") }
+                    ) {
+                        if (saving)
+                            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                        else
+                            Text("Save & Continue")
+                    }
                 }
             }
         }
@@ -429,7 +500,7 @@ fun ProfileSetup(
 /* ----------------------------- PARTS & INPUTS ------------------------------ */
 
 @Composable
-fun CheckboxItem(name: String) {
+private fun CheckboxItem(name: String) {
     var checked by remember { mutableStateOf(true) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Checkbox(checked = checked, onCheckedChange = { checked = it })
@@ -438,37 +509,16 @@ fun CheckboxItem(name: String) {
     }
 }
 
-/** renamed to avoid shadowing Material3.Switch */
-@Composable
-fun LabeledSwitch(name: String) {
-    var checked by remember { mutableStateOf(true) }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        SmallText(name)
-        Switch(
-            modifier = Modifier.padding(horizontal = 4.dp),
-            checked = checked,
-            onCheckedChange = { checked = it }
-        )
-    }
-}
-
+/* Date picker that returns "yyyy-MM-dd" via onPicked */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DisplayDatePicker() {
-    val calendar = Calendar.getInstance()
-    var birthday by remember { mutableStateOf("") }
+private fun DisplayDatePicker(value: String, onPicked: (String) -> Unit) {
     val formatter = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = System.currentTimeMillis()
-    )
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
     var showDialog by remember { mutableStateOf(false) }
 
     OutlinedTextField(
-        value = birthday,
+        value = value,
         onValueChange = {},
         readOnly = true,
         label = { SmallText("Date of Birth") },
@@ -492,13 +542,11 @@ fun DisplayDatePicker() {
             confirmButton = {
                 TextButton(onClick = {
                     showDialog = false
-                    val chosen = datePickerState.selectedDateMillis ?: calendar.timeInMillis
-                    birthday = "DoB: ${formatter.format(Date(chosen))}"
+                    val millis = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
+                    onPicked(formatter.format(Date(millis)))
                 }) { Text("OK") }
             },
-            dismissButton = {
-                TextButton(onClick = { showDialog = false }) { Text("Cancel") }
-            }
+            dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Cancel") } }
         ) {
             DatePicker(state = datePickerState)
         }
@@ -507,10 +555,9 @@ fun DisplayDatePicker() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StateMenu() {
+private fun StateMenu(value: String, onValueChange: (String) -> Unit) {
     val states = listOf("VIC", "QLD", "NSW", "SA", "TAS", "WA", "ACT", "NT")
     var isExpanded by remember { mutableStateOf(false) }
-    var selectedState by remember { mutableStateOf(states.first()) }
 
     ExposedDropdownMenuBox(
         expanded = isExpanded,
@@ -523,7 +570,7 @@ fun StateMenu() {
                 .fillMaxWidth()
                 .focusProperties { canFocus = false },
             readOnly = true,
-            value = selectedState,
+            value = value,
             onValueChange = {},
             label = { SmallText("State") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) }
@@ -536,7 +583,7 @@ fun StateMenu() {
                 DropdownMenuItem(
                     text = { SmallText(option) },
                     onClick = {
-                        selectedState = option
+                        onValueChange(option)
                         isExpanded = false
                     },
                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
@@ -556,6 +603,6 @@ fun ProfilePreview_Step1() {
 
 @Preview(showBackground = true, showSystemUi = true, name = "Profile Setup – Step 2")
 @Composable
-fun ProfilePreview_Step2() {
+fun ProfilePreview_Step_2() {
     FIT5046Lab4Group3ass2Theme { ProfileScaffold(startStep = 2) }
 }
