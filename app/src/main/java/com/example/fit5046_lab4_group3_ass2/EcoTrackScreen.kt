@@ -1,6 +1,10 @@
 package com.example.fit5046_lab4_group3_ass2
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
+import android.provider.Settings.Global.getString
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -57,6 +61,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat.getSystemService
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
@@ -103,6 +109,8 @@ fun EcoTrackScaffold(
     } else {
         0f
     }
+
+    viewModel.storeARecord()
 
     Scaffold(
         topBar = {
@@ -182,14 +190,14 @@ fun EcoTrackScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp)
     ) {
-        item {Button(onClick = {
+        /*item {Button(onClick = {
             coroutineScope.launch { try {
             viewModel.storeARecord()
         } catch (e: Exception) {
             Log.e("ButtonClick", "Error storing record", e)
         } } }) {
             Text("Store record")
-        }}
+        }}*/
         item { PeriodChips(selectedIndex = selectedPeriodIndex) }
         item { PriceHeaderCard(rrpAudPerMwh, severity) }
 
