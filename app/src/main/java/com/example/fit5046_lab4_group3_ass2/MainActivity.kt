@@ -10,13 +10,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.fit5046_lab4_group3_ass2.data.UserPrefs
 import com.example.fit5046_lab4_group3_ass2.data.ProfileRepo
-import com.example.fit5046_lab4_group3_ass2.ui.screens.HomeScaffold
+import com.example.fit5046_lab4_group3_ass2.data.UserPrefs
 import com.example.fit5046_lab4_group3_ass2.ui.screens.HomePageScaffold
+import com.example.fit5046_lab4_group3_ass2.ui.screens.HomeScaffold
 import com.example.fit5046_lab4_group3_ass2.ui.screens.LoginScaffold
-import com.example.fit5046_lab4_group3_ass2.ui.screens.SignUpScaffold
 import com.example.fit5046_lab4_group3_ass2.ui.screens.ProfileScaffold
+import com.example.fit5046_lab4_group3_ass2.ui.screens.SignUpScaffold
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 import kotlinx.coroutines.launch
 
@@ -43,12 +43,12 @@ private fun AppNav() {
         composable("login") {
             LoginScaffold(
                 onLoginSuccess = {
-                    // Decide next destination:
-                    // 1) If first run -> go to home_start (intro)
-                    // 2) else check whether a profile doc exists -> profile_setup or home_main
+                    // Desired flow:
+                    // 1) If NOT onboarded -> home_start (Starting page).
+                    // 2) If onboarded -> check profile -> home_main or profile_setup.
                     scope.launch {
-                        val first = UserPrefs.isFirstRun(ctx)
-                        if (first) {
+                        val onboarded = UserPrefs.isOnboarded(ctx)  // default false
+                        if (!onboarded) {
                             nav.navigate("home_start") {
                                 popUpTo("login") { inclusive = true }
                                 launchSingleTop = true
@@ -56,8 +56,7 @@ private fun AppNav() {
                         } else {
                             ProfileRepo.exists { res ->
                                 val hasProfile = res.getOrElse { false }
-                                val next = if (hasProfile) "home_main" else "profile_setup"
-                                nav.navigate(next) {
+                                nav.navigate(if (hasProfile) "home_main" else "profile_setup") {
                                     popUpTo("login") { inclusive = true }
                                     launchSingleTop = true
                                 }
@@ -80,14 +79,14 @@ private fun AppNav() {
             )
         }
 
-        // First-time “starting page”
+        // Starting page for first-time users
         composable("home_start") {
             HomeScaffold(
                 onNotificationsClick = { /* optional */ },
                 onGetStartedClick = {
-                    // When user finishes the intro, mark onboarded and go to profile setup
+                    // Mark onboarded, then go to Profile setup
                     scope.launch {
-                        UserPrefs.setOnboarded(ctx)
+                        UserPrefs.setOnboarded(ctx, true)
                         nav.navigate("profile_setup") {
                             popUpTo("home_start") { inclusive = true }
                             launchSingleTop = true
@@ -97,7 +96,7 @@ private fun AppNav() {
             )
         }
 
-        // Profile setup flow (two steps). Navigates to home on successful save.
+        // Profile setup (two steps). On successful save -> Home
         composable("profile_setup") {
             ProfileScaffold(
                 onSaved = {
@@ -109,7 +108,7 @@ private fun AppNav() {
             )
         }
 
-        // Regular home for returning users
+        // Home for returning users
         composable("home_main") {
             HomePageScaffold()
         }

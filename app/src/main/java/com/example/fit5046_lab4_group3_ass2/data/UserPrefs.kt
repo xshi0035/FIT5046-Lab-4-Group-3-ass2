@@ -1,23 +1,18 @@
 package com.example.fit5046_lab4_group3_ass2.data
 
 import android.content.Context
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.flow.first
-
-private val Context.dataStore by preferencesDataStore(name = "user_prefs")
+import androidx.core.content.edit
 
 object UserPrefs {
-    private val FIRST_RUN = booleanPreferencesKey("is_first_run")
+    private const val FILE = "user_prefs"
+    private const val KEY_ONBOARDED = "onboarded"
 
-    /** default = true (first time) */
-    suspend fun isFirstRun(context: Context): Boolean {
-        val prefs = context.dataStore.data.first()
-        return prefs[FIRST_RUN] ?: true
-    }
+    fun isOnboarded(ctx: Context): Boolean =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .getBoolean(KEY_ONBOARDED, false)
 
-    suspend fun setOnboarded(context: Context) {
-        context.dataStore.edit { it[FIRST_RUN] = false }
+    fun setOnboarded(ctx: Context, value: Boolean = true) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .edit { putBoolean(KEY_ONBOARDED, value) }
     }
 }
