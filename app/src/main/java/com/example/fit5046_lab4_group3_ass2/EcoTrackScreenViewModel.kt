@@ -2,10 +2,12 @@ package com.example.fit5046_lab4_group3_ass2
 
 import android.app.Application
 import android.util.Log
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.fit5046_lab4_group3_ass2.api.ItemsRepository
 import com.example.fit5046_lab4_group3_ass2.api.MarketResponse
 import com.example.fit5046_lab4_group3_ass2.room.DayUse
@@ -15,14 +17,10 @@ import com.example.sensorslab.SensorRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import java.util.Date
+import java.util.concurrent.TimeUnit
 
 class EcoTrackScreenViewModel(application: Application) : AndroidViewModel(application) {
     //API stuff
@@ -79,26 +77,8 @@ class EcoTrackScreenViewModel(application: Application) : AndroidViewModel(appli
     }
 
     // complicated functionality
+    // this is for setting up the work to store records in the background
     fun storeARecord() {
-        // get the amount used
-        var latest = ""
-        viewModelScope.launch {
-            latest = withTimeoutOrNull(5_000L) {
-                sensorRepository.getSensorData().first { it != "0" }
-            } ?: sensorRepository.getSensorData().value
-            Log.e("sensor value", latest)
-        }
-        // get the price
-        val itemsReturned by retrofitResponse
-        val price = if (itemsReturned.data.isNotEmpty()) {
-            itemsReturned.data[0].results[0].data
-                .last { it.size > 1 && it[1] is Number }[1].toString().toFloat()
-        } else {
-            0f
-        }
-        // store together
-        insertDayUse(DayUse(date = (Date().getTime() / 1000), use = latest.toFloat(), price = price.toInt()))
-
         //print the records for testing:
         val records = cRepository.allDayUses
         viewModelScope.launch {
@@ -107,7 +87,10 @@ class EcoTrackScreenViewModel(application: Application) : AndroidViewModel(appli
                     Log.e("DayUse", day.toString())
                 }
             }
-
+        val workRequest = PeriodicWorkRequestBuilder<StorageWorker>(
+            15, TimeUnit.MINUTES
+        ).build()
+        WorkManager.getInstance(application).enqueue(workRequest)
         return
     }
 }

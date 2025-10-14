@@ -41,7 +41,7 @@ android {
 }
 
 dependencies {
-
+    val work_version = "2.10.5"
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -70,4 +70,5 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.logging.interceptor)
     implementation(libs.mpandroidchart)
+    implementation("androidx.work:work-runtime-ktx:${work_version}")
 }
