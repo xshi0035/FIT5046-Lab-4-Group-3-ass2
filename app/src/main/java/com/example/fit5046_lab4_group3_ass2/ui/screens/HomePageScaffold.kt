@@ -1,24 +1,21 @@
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Comment
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -27,25 +24,32 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 
-/* ------------------------------- SCAFFOLD ---------------------------------- */
+/* ROUTE_* constants now come from EcoBottomBar.kt */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomePageScaffold() {
-    // Keep nav consistent across the app
-    val navItems = listOf(
-        NavItem("Home",       Icons.Filled.Home),
-        NavItem("Appliances", Icons.Filled.Add),
-        NavItem("EcoTrack",   Icons.Filled.Info),
-        NavItem("Rewards",    Icons.Filled.Star),
-        NavItem("Profile",    Icons.Filled.AccountCircle),
-    )
+fun HomePageScaffold(
+    // Which tab should appear selected in the bar
+    currentRoute: String = ROUTE_HOME,
 
+    // Bottom bar navigation
+    onTabSelected: (route: String) -> Unit = {},
+
+    // Quick actions
+    onAddAppliance: () -> Unit = {},
+    onOpenEcoTrack: () -> Unit = {},
+    onViewTips: () -> Unit = {},
+    onViewRewards: () -> Unit = {},
+
+    // Optional top-right action
+    onNotificationsClick: () -> Unit = {}
+) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Home") }, // sentence case like other screens
+                title = { Text("Home") },
                 navigationIcon = {
+                    // (Left icon kept from your UI; no-op)
                     Surface(
                         shape = CircleShape,
                         tonalElevation = 1.dp,
@@ -56,36 +60,26 @@ fun HomePageScaffold() {
                     ) { Box(contentAlignment = Alignment.Center) { Text("←") } }
                 },
                 actions = {
-                    // Bell with a small unread dot (same pattern as Rewards)
                     Box {
-                        IconButton(onClick = { /* UI only */ }) {
-                            Icon(
-                                imageVector = Icons.Filled.Notifications,
-                                contentDescription = "Notifications"
-                            )
+                        IconButton(onClick = onNotificationsClick) {
+                            Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                         }
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF8A2BE2))
+                                .background(MaterialTheme.colorScheme.primary)
                         )
                     }
                 }
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                navItems.forEachIndexed { index, item ->
-                    NavigationBarItem(
-                        selected = index == 0, // Home selected (UI-only)
-                        onClick = { /* UI only */ },
-                        icon   = { Icon(item.icon, contentDescription = item.label) },
-                        label  = { Text(item.label) }
-                    )
-                }
-            }
+            EcoBottomBar(
+                currentRoute = currentRoute,
+                onTabSelected = onTabSelected
+            )
         }
     ) { inner ->
         Surface(
@@ -93,20 +87,25 @@ fun HomePageScaffold() {
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            Home() // UI-only content
+            Home(
+                onAddAppliance = onAddAppliance,
+                onOpenEcoTrack = onOpenEcoTrack,
+                onViewTips = onViewTips,
+                onViewRewards = onViewRewards
+            )
         }
     }
 }
 
 /* --------------------------------- SCREEN ---------------------------------- */
 
-private data class NavItem(val label: String, val icon: ImageVector)
+private data class NavItem(val route: String, val label: String, val icon: ImageVector)
 
 @Composable
 private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        style = MaterialTheme.typography.titleMedium, // matches Achievements
+        style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface,
         modifier = modifier.padding(top = 12.dp, bottom = 8.dp)
     )
@@ -121,7 +120,7 @@ private fun HomeScreenCard(
     progress: Float = 0f,
     rightText: String,
     tonal: Boolean = false,
-    valueStyle: TextStyle = MaterialTheme.typography.titleMedium // override for big numbers
+    valueStyle: TextStyle = MaterialTheme.typography.titleMedium
 ) {
     val colors = if (tonal)
         CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -132,10 +131,11 @@ private fun HomeScreenCard(
         colors = colors,
         modifier = modifier.padding(bottom = 12.dp)
     ) {
-        Column(Modifier
-            .fillMaxWidth()
-            .padding(12.dp)) {
-
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -144,7 +144,7 @@ private fun HomeScreenCard(
                 if (title.isNotEmpty()) {
                     Text(
                         title,
-                        style = MaterialTheme.typography.titleSmall, // card titles
+                        style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -152,7 +152,7 @@ private fun HomeScreenCard(
                 if (rightText.isNotEmpty()) {
                     Text(
                         rightText,
-                        style = MaterialTheme.typography.bodySmall, // secondary, muted
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -161,7 +161,7 @@ private fun HomeScreenCard(
             if (mainText.isNotEmpty()) {
                 Text(
                     text = mainText,
-                    style = valueStyle,  // <- controlled from call site
+                    style = valueStyle,
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
@@ -169,7 +169,7 @@ private fun HomeScreenCard(
             if (smallText.isNotEmpty()) {
                 Text(
                     smallText,
-                    style = MaterialTheme.typography.bodySmall, // supporting
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp)
                 )
@@ -192,13 +192,13 @@ private fun HomeScreenCard(
 
 @Composable
 private fun QuickActionButton(
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
-    // Filled tonal for contrast + unified label size (like other screens)
     FilledTonalButton(
-        onClick = { /* UI only */ },
+        onClick = onClick,
         modifier = modifier.height(68.dp),
         shape = RoundedCornerShape(20.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
@@ -217,7 +217,12 @@ private fun QuickActionButton(
 }
 
 @Composable
-private fun Home() {
+private fun Home(
+    onAddAppliance: () -> Unit,
+    onOpenEcoTrack: () -> Unit,
+    onViewTips: () -> Unit,
+    onViewRewards: () -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
@@ -240,14 +245,13 @@ private fun Home() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                // Tonal summary cards (match Achievements spacing/typography)
                 HomeScreenCard(
                     title = "EcoPoints",
                     mainText = "2,450",
                     smallText = "🔥 7-day streak",
                     rightText = "\uD83C\uDFC6",
                     tonal = true,
-                    valueStyle = MaterialTheme.typography.displaySmall // big number like Rewards
+                    valueStyle = MaterialTheme.typography.displaySmall
                 )
                 HomeScreenCard(
                     title = "⚡ Electricity",
@@ -265,12 +269,14 @@ private fun Home() {
                     QuickActionButton(
                         icon = Icons.Filled.Add,
                         label = "Add Appliance",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onAddAppliance
                     )
                     QuickActionButton(
-                        icon = Icons.Filled.Info,
+                        icon = androidx.compose.material.icons.Icons.Filled.Info,
                         label = "Open EcoTrack",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenEcoTrack
                     )
                 }
 
@@ -280,18 +286,19 @@ private fun Home() {
                     QuickActionButton(
                         icon = Icons.Filled.Comment,
                         label = "View Tips",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onViewTips
                     )
                     QuickActionButton(
-                        icon = Icons.Filled.Star,
+                        icon = androidx.compose.material.icons.Icons.Filled.Star,
                         label = "View Rewards",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onViewRewards
                     )
                 }
 
                 SectionTitle("Recent Activity")
 
-                // Recent (electricity-focused)
                 HomeScreenCard(
                     title = "⚡ Usage goal met",
                     mainText = "",
@@ -329,6 +336,13 @@ private fun Home() {
 @Composable
 private fun HomePageScaffoldPreview() {
     FIT5046Lab4Group3ass2Theme {
-        HomePageScaffold()
+        HomePageScaffold(
+            currentRoute = ROUTE_HOME,
+            onTabSelected = {},
+            onAddAppliance = {},
+            onOpenEcoTrack = {},
+            onViewTips = {},
+            onViewRewards = {}
+        )
     }
 }

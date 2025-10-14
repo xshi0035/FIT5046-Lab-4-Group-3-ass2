@@ -80,16 +80,10 @@ private val demoTips = listOf(
 @Composable
 fun TipsScaffold(
     onBack: () -> Unit = {},
-    onNotifications: () -> Unit = {}
+    onNotifications: () -> Unit = {},
+    // NAV: Tips shows bottom bar for quick tab-jumps (no tab is selected here)
+    onTabSelected: (route: String) -> Unit = {}
 ) {
-    val navItems: List<Pair<String, androidx.compose.ui.graphics.vector.ImageVector>> = listOf(
-        "Home" to Icons.Filled.Home,
-        "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,
-        "Rewards" to Icons.Filled.Star,
-        "Profile" to Icons.Filled.AccountCircle
-    )
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -117,16 +111,10 @@ fun TipsScaffold(
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                navItems.forEachIndexed { index, (label, icon) ->
-                    NavigationBarItem(
-                        selected = false, // UI-only; Tips isn't a bottom-tab page
-                        onClick = { /* UI only */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
-                    )
-                }
-            }
+            EcoBottomBar(
+                currentRoute = "",
+                onTabSelected = onTabSelected
+            )
         }
     ) { inner ->
         Surface(

@@ -7,19 +7,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -43,29 +38,26 @@ fun EcoTrackScaffold(
     selectedPeriodIndex: Int = 0,
     kpiTodayText: String = "8.2",
     kpiVsYesterdayText: String = "-12%",
-    kpiCostTodayText: String = "$2.46"
+    kpiCostTodayText: String = "$2.46",
+    // NAV
+    currentRoute: String = ROUTE_ECOTRACK,
+    onTabSelected: (route: String) -> Unit = {},
+    onBack: () -> Unit = {},
+    onNotifications: () -> Unit = {}
 ) {
-    val navItems: List<Pair<String, ImageVector>> = listOf(
-        "Home" to Icons.Filled.Home,
-        "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,
-        "Rewards" to Icons.Filled.Star,   // <- plural for consistency
-        "Profile" to Icons.Filled.AccountCircle
-    )
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("EcoTrack") },
                 navigationIcon = {
-                    IconButton(onClick = { /* UI only */ }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     // Use the same bell-with-dot pattern as Rewards screen
                     Box {
-                        IconButton(onClick = { /* UI only */ }) {
+                        IconButton(onClick = onNotifications) {
                             Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                         }
                         Box(
@@ -79,16 +71,10 @@ fun EcoTrackScaffold(
             )
         },
         bottomBar = {
-            NavigationBar {
-                navItems.forEachIndexed { index, (label, icon) ->
-                    NavigationBarItem(
-                        selected = index == 2, // EcoTrack selected
-                        onClick = { /* UI only */ },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) }
-                    )
-                }
-            }
+            EcoBottomBar(
+                currentRoute = currentRoute,
+                onTabSelected = onTabSelected
+            )
         }
     ) { inner ->
         Surface(
@@ -463,7 +449,6 @@ fun EcoTrackPreview() {
 @Preview(name = "EcoTrack – Tunable", showBackground = true, showSystemUi = true)
 @Composable
 fun EcoTrackPreview_Tunable() {
-    // 19/01/2019 dataset - Daily Electricity Price and Demand Data
     FIT5046Lab4Group3ass2Theme {
         EcoTrackScaffold(
             todayKwh = 9.6f,
@@ -481,7 +466,6 @@ fun EcoTrackPreview_Tunable() {
 @Composable
 fun EcoTrackPreview_High() {
     FIT5046Lab4Group3ass2Theme {
-        // 23/01/2019 dataset - Daily Electricity Price and Demand Data
         EcoTrackScaffold(rrpAudPerMwh = 154f) // shows High alert
     }
 }
@@ -490,7 +474,6 @@ fun EcoTrackPreview_High() {
 @Composable
 fun EcoTrackPreview_Severe() {
     FIT5046Lab4Group3ass2Theme {
-        // 15/01/2019 dataset - Daily Electricity Price and Demand Data
         EcoTrackScaffold(rrpAudPerMwh = 222f) // shows Severe alert
     }
 }
