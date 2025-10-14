@@ -19,6 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -226,9 +227,14 @@ private fun LoginScreen(
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { showPassword = !showPassword }) {
+                    val iconRes =
+                        if (showPassword) R.drawable.show_password_icon
+                        else R.drawable.hide_password_icon
                     Icon(
-                        painter = painterResource(id = R.drawable.show_password_icon),
-                        contentDescription = if (showPassword) "Hide password" else "Show password"
+                        painter = painterResource(id = iconRes),
+                        contentDescription = if (showPassword) "Hide password" else "Show password",
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             },

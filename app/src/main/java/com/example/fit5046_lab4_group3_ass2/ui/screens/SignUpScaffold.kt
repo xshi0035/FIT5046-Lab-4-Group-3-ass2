@@ -167,7 +167,9 @@ private fun SignUpScreen(
             "Enter your details to get started",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
         )
 
         Spacer(Modifier.height(16.dp))
@@ -212,14 +214,18 @@ private fun SignUpScreen(
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { showPassword = !showPassword }) {
+                    val iconRes =
+                        if (showPassword) R.drawable.show_password_icon
+                        else R.drawable.hide_password_icon
                     Icon(
-                        painter = painterResource(id = R.drawable.show_password_icon),
+                        painter = painterResource(id = iconRes),
                         contentDescription = if (showPassword) "Hide password" else "Show password",
-                        tint = Color.Unspecified
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             },
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(11.dp),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -285,7 +291,9 @@ private fun SignUpScreen(
             },
             enabled = !loading,
             shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().height(52.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
         ) {
             if (loading) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
             else Text("Create Account", fontWeight = FontWeight.Medium)
@@ -295,7 +303,9 @@ private fun SignUpScreen(
 
         // “Already have an account? Sign in”
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
             horizontalArrangement = Arrangement.Center
         ) {
             Text("Already have an account? ")
