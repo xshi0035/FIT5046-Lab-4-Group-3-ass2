@@ -27,6 +27,10 @@ import kotlin.math.round
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 
 /* ------------------------------- SCAFFOLD ---------------------------------- */
 
@@ -40,6 +44,42 @@ fun AddApplianceScaffold(
     currentRoute: String = ROUTE_APPLIANCES,
     onTabSelected: (route: String) -> Unit = {}
 ) {
+    val snackbarHost = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+
+    // Handler that writes to Firestore under users/{uid}/appliances
+    fun saveToFirestore(name: String, watt: Int, hours: Float, category: String) {
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            scope.launch { snackbarHost.showSnackbar("You’re not signed in.") }
+            return
+        }
+        val data = hashMapOf(
+            "name" to name,
+            "watt" to watt,
+            "hours" to hours,
+            "category" to category,
+            "createdAt" to FieldValue.serverTimestamp()
+        )
+        db.collection("users")
+            .document(uid)
+            .collection("appliances")
+            .add(data)
+            .addOnSuccessListener {
+                scope.launch { snackbarHost.showSnackbar("Appliance saved") }
+                // Also call the external callback (if any) then go back
+                onSave(name, watt, hours, category)
+                onBack()
+            }
+            .addOnFailureListener { e ->
+                scope.launch {
+                    snackbarHost.showSnackbar(e.localizedMessage ?: "Failed to save appliance")
+                }
+            }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -71,7 +111,8 @@ fun AddApplianceScaffold(
                 currentRoute = currentRoute,
                 onTabSelected = onTabSelected
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHost) }
     ) { inner ->
         AddApplianceContent(
             modifier = Modifier
@@ -79,7 +120,7 @@ fun AddApplianceScaffold(
                 .padding(inner)
                 .imePadding() // when keyboard shows, keep content visible
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            onSave = onSave,
+            onSave = ::saveToFirestore,
             onCancel = onCancel
         )
     }
