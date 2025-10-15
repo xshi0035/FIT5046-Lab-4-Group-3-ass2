@@ -437,13 +437,30 @@ fun LineChartScreen(viewModel: EcoTrackScreenViewModel, days_to_show: Int = 1) {
         val entries = dayUseList_to_show.mapIndexed { index, dayUse ->
             Entry(index.toFloat(), dayUse.use)
         }
-
+        /*
         val dataSet = LineDataSet(entries, "Energy use (values recorded every 15 minutes)").apply {
             colors = ColorTemplate.COLORFUL_COLORS.toList()
         }
 
         val lineData = LineData(dataSet)
-        lineData.setDrawValues(true)
+        lineData.setDrawValues(false)
+*/
+        val chartRef = remember { mutableStateOf<LineChart?>(null) }
+
+        // Update chart data when entries change
+        LaunchedEffect(entries) {
+            chartRef.value?.let { chart ->
+                val dataSet = LineDataSet(entries, "Energy use (values recorded every 15 minutes)").apply {
+                    colors = ColorTemplate.COLORFUL_COLORS.toList()
+                }
+                val lineData = LineData(dataSet).apply {
+                    setDrawValues(false)
+                }
+                chart.data = lineData
+                chart.notifyDataSetChanged()
+                chart.invalidate()
+            }
+        }
 
         AndroidView(
             modifier = Modifier
@@ -451,7 +468,7 @@ fun LineChartScreen(viewModel: EcoTrackScreenViewModel, days_to_show: Int = 1) {
                 .height(300.dp),
             factory = { context ->
                 LineChart(context).apply {
-                    data = lineData
+                    chartRef.value = this
                     description.isEnabled = false
                     xAxis.position = XAxis.XAxisPosition.BOTTOM
                     xAxis.setDrawLabels(false)
