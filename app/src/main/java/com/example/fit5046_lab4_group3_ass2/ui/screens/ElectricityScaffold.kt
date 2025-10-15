@@ -11,7 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,40 +23,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import kotlin.math.max
+import java.util.Locale
 
-/* ------------------------------- DATA (UI only) ------------------------------- */
+/* ----------------------------- UI model (derived) ---------------------------- */
 
 data class Appliance(
+    val id: String,          // <-- needed for edit/delete
     val iconEmoji: String,
     val name: String,
-    val spec: String,       // e.g., "150W • 6h daily"
+    val spec: String,       // e.g., "1500W • 6h daily"
     val costPerDay: String, // e.g., "$0.27/day"
-    val kwh: String         // e.g., "0.9 kWh"
-)
-
-data class Suggestion(
-    val title: String,
-    val body: String,
-    val leadingEmoji: String = "💡"
-)
-
-private val demoAppliances = listOf(
-    Appliance("📺", "Living Room TV", "150W • 6h daily", "$0.27/day", "0.9 kWh"),
-    Appliance("❄️", "Refrigerator", "200W • 24h daily", "$1.44/day", "4.8 kWh"),
-    Appliance("👕", "Washing Machine", "500W • 2h daily", "$0.30/day", "1.0 kWh"),
-    Appliance("💡", "LED Lights (8)", "80W • 8h daily", "$0.19/day", "0.64 kWh")
-)
-
-private val demoSuggestions = listOf(
-    Suggestion(
-        title = "Peak Hour Alert",
-        body = "High load expected at 7pm today. Consider running your washing machine earlier to save $0.15."
-    ),
-    Suggestion(
-        title = "Eco Tip",
-        body = "Your TV has been on for 8+ hours. Consider using sleep mode to save 20W per hour.",
-        leadingEmoji = "🪶"
-    )
+    val kwh: String         // e.g., "0.90 kWh"
 )
 
 /* ------------------------------- MAIN SCAFFOLD ------------------------------- */
@@ -64,10 +45,11 @@ private val demoSuggestions = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ElectricityScaffold(
-    // NAV
     currentRoute: String = ROUTE_APPLIANCES,
     onTabSelected: (route: String) -> Unit = {},
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onAddAppliance: () -> Unit = {},
+    onEditAppliance: (id: String) -> Unit = {}   // <-- NEW
 ) {
     Scaffold(
         topBar = {
@@ -79,9 +61,8 @@ fun ElectricityScaffold(
                     }
                 },
                 actions = {
-                    // Bell + tiny unread dot (same pattern as Rewards)
                     Box {
-                        IconButton(onClick = { /* UI only */ }) {
+                        IconButton(onClick = { /* optional */ }) {
                             Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                         }
                         Box(
@@ -102,7 +83,7 @@ fun ElectricityScaffold(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { /* no-op */ }) {
+            FloatingActionButton(onClick = onAddAppliance) {
                 Icon(Icons.Filled.Add, contentDescription = "Add")
             }
         }
@@ -112,28 +93,160 @@ fun ElectricityScaffold(
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            ElectricityScreen(
-                usageKwh = "8.4 kWh",
-                costEstimate = "$2.52 estimated cost",
-                co2 = "CO₂: 4.2kg equivalent",
-                changePercent = "-12%",
-                appliances = demoAppliances,
-                suggestions = demoSuggestions
+            ElectricityScreenFromFirestore(
+                onEdit = onEditAppliance,     // pass down
+                onDeleted = { /* no-op; list updates via snapshot */ }
             )
         }
+    }
+}
+
+/* ------------------------------- FIRESTORE UI -------------------------------- */
+
+@Composable
+private fun ElectricityScreenFromFirestore(
+    onEdit: (id: String) -> Unit,
+    onDeleted: () -> Unit
+) {
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+    val uid = auth.currentUser?.uid
+
+    var appliances by remember { mutableStateOf(listOf<Appliance>()) }
+    var totalKwh by remember { mutableStateOf(0.0) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    // state for delete-confirm dialog
+    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteName by remember { mutableStateOf<String?>(null) }
+
+    // Listen to Firestore: users/{uid}/appliances
+    DisposableEffect(uid) {
+        var reg: ListenerRegistration? = null
+        if (uid == null) {
+            isLoading = false
+            appliances = emptyList()
+            errorMsg = "You're not signed in."
+        } else {
+            reg = db.collection("users")
+                .document(uid)
+                .collection("appliances")
+                .addSnapshotListener { snap, e ->
+                    if (e != null) {
+                        errorMsg = e.localizedMessage ?: "Failed to load appliances."
+                        isLoading = false
+                        return@addSnapshotListener
+                    }
+                    var kwhTotal = 0.0
+                    val items = snap?.documents?.mapNotNull { d ->
+                        val name = d.getString("name") ?: return@mapNotNull null
+                        val watt = (d.getLong("watt") ?: 0L).toInt()
+                        val hours = (d.getDouble("hours") ?: 0.0).toFloat()
+                        val category = d.getString("category") ?: "Other"
+
+                        val kwh = max(0f, watt * hours / 1000f)
+                        val cost = kwh * 0.30f
+                        kwhTotal += kwh.toDouble()
+
+                        val emoji = when (category) {
+                            "Lighting" -> "💡"
+                            "Entertainment" -> "🎮"
+                            "Cooling & Heating" -> "❄️"
+                            "Cleaning" -> "🧺"
+                            "Kitchen" -> "🍳"
+                            else -> "🔌"
+                        }
+                        Appliance(
+                            id = d.id,
+                            iconEmoji = emoji,
+                            name = name,
+                            spec = "${watt}W • ${hours}h daily",
+                            costPerDay = String.format(Locale.getDefault(), "$%.2f/day", cost),
+                            kwh = String.format(Locale.getDefault(), "%.2f kWh", kwh)
+                        )
+                    } ?: emptyList()
+
+                    appliances = items
+                    totalKwh = kwhTotal
+                    isLoading = false
+                    errorMsg = null
+                }
+        }
+        onDispose { reg?.remove() }
+    }
+
+    // Derived header stats
+    val usageKwhText = String.format(Locale.getDefault(), "%.2f kWh", totalKwh)
+    val costText     = String.format(Locale.getDefault(), "$%.2f estimated cost", totalKwh * 0.30)
+    val co2KgText    = String.format(Locale.getDefault(), "CO\u2082: %.2fkg equivalent", totalKwh * 0.5)
+    val changePercent = "-0%" // placeholder
+
+    ElectricityScreen(
+        usageKwh = usageKwhText,
+        costEstimate = costText,
+        co2 = co2KgText,
+        changePercent = changePercent,
+        appliances = appliances,
+        onEdit = { onEdit(it) },
+        onDelete = { id, name ->
+            pendingDeleteId = id
+            pendingDeleteName = name
+        }
+    )
+
+    if (isLoading && appliances.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    }
+    errorMsg?.let {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+            AssistChip(onClick = { /* no-op */ }, label = { Text(it) })
+        }
+    }
+
+    // Confirm Delete dialog
+    val toDeleteId = pendingDeleteId
+    if (toDeleteId != null && uid != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDeleteId = null; pendingDeleteName = null },
+            title = { Text("Delete appliance") },
+            text = { Text("Are you sure you want to delete “${pendingDeleteName ?: ""}”? This action can’t be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingDeleteId = null
+                        pendingDeleteName = null
+                        FirebaseFirestore.getInstance()
+                            .collection("users").document(uid)
+                            .collection("appliances").document(toDeleteId)
+                            .delete()
+                            .addOnSuccessListener { onDeleted() }
+                            .addOnFailureListener { /* optional: surface error */ }
+                    }
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteId = null; pendingDeleteName = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
 /* --------------------------------- SCREEN ---------------------------------- */
 
 @Composable
-fun ElectricityScreen(
+private fun ElectricityScreen(
     usageKwh: String,
     costEstimate: String,
     co2: String,
     changePercent: String,
     appliances: List<Appliance>,
-    suggestions: List<Suggestion>
+    onEdit: (id: String) -> Unit,
+    onDelete: (id: String, name: String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -141,7 +254,6 @@ fun ElectricityScreen(
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
     ) {
-        // "Today's Usage"
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -181,7 +293,7 @@ fun ElectricityScreen(
             }
         }
 
-        // My Appliances header
+        // Header
         item {
             Row(
                 modifier = Modifier
@@ -191,33 +303,28 @@ fun ElectricityScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("My Appliances", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "View Usage",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
             }
         }
 
-        // Appliance list
-        items(appliances) { appliance ->
-            ApplianceCard(appliance)
-            Spacer(Modifier.height(12.dp))
-        }
-
-        // Smart Suggestions header
-        item {
-            Text(
-                "Smart Suggestions",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+        // List (may be empty)
+        items(appliances) { a ->
+            ApplianceCard(
+                appliance = a,
+                onEdit = { onEdit(a.id) },
+                onDelete = { onDelete(a.id, a.name) }
             )
+            Spacer(Modifier.height(12.dp))
         }
 
-        // Suggestions list
-        items(suggestions) { tip ->
-            SuggestionCard(tip)
-            Spacer(Modifier.height(12.dp))
+        if (appliances.isEmpty()) {
+            item {
+                Text(
+                    "No appliances yet. Tap the + button to add your first appliance.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            }
         }
     }
 }
@@ -246,7 +353,11 @@ private fun ChangePill(text: String) {
 }
 
 @Composable
-private fun ApplianceCard(appliance: Appliance) {
+private fun ApplianceCard(
+    appliance: Appliance,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -254,7 +365,6 @@ private fun ApplianceCard(appliance: Appliance) {
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Tinted icon tile
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -293,16 +403,18 @@ private fun ApplianceCard(appliance: Appliance) {
             Spacer(Modifier.height(12.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { /* no-op */ }, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
                     Text("Edit")
                 }
-                OutlinedButton(onClick = { /* no-op */ }, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
                     Text("Delete")
                 }
             }
         }
     }
 }
+
+data class Suggestion(val title: String, val body: String, val leadingEmoji: String = "💡")
 
 @Composable
 private fun SuggestionCard(suggestion: Suggestion) {
