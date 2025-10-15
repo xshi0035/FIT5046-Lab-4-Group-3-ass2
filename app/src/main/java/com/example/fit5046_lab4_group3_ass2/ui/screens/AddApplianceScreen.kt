@@ -27,12 +27,17 @@ import kotlin.math.round
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 
 /* ------------------------------- SCAFFOLD ---------------------------------- */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddApplianceScaffold(
+    applianceId: String? = null, // null = add new, non-null = edit existing
     onBack: () -> Unit = {},
     onSave: (name: String, watt: Int, hours: Float, category: String) -> Unit = { _,_,_,_ -> },
     onCancel: () -> Unit = {},
@@ -40,10 +45,55 @@ fun AddApplianceScaffold(
     currentRoute: String = ROUTE_APPLIANCES,
     onTabSelected: (route: String) -> Unit = {}
 ) {
+    val snackbarHost = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+
+    // Handler that writes to Firestore under users/{uid}/appliances
+    fun saveToFirestore(name: String, watt: Int, hours: Float, category: String) {
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            scope.launch { snackbarHost.showSnackbar("You’re not signed in.") }
+            return
+        }
+        val data = hashMapOf(
+            "name" to name,
+            "watt" to watt,
+            "hours" to hours,
+            "category" to category,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+
+        val col = db.collection("users").document(uid).collection("appliances")
+
+        val task = if (applianceId == null) {
+            // create new
+            col.add(data + ("createdAt" to FieldValue.serverTimestamp()))
+        } else {
+            // update existing
+            col.document(applianceId).set(data, com.google.firebase.firestore.SetOptions.merge())
+        }
+
+        task.addOnSuccessListener {
+            scope.launch {
+                snackbarHost.showSnackbar(
+                    if (applianceId == null) "Appliance saved" else "Changes saved"
+                )
+            }
+            onSave(name, watt, hours, category)
+            onBack()
+        }.addOnFailureListener { e ->
+            scope.launch {
+                snackbarHost.showSnackbar(e.localizedMessage ?: "Failed to save appliance")
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Add Appliance") },
+                title = { Text(if (applianceId == null) "Add Appliance" else "Edit Appliance") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -71,7 +121,8 @@ fun AddApplianceScaffold(
                 currentRoute = currentRoute,
                 onTabSelected = onTabSelected
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHost) }
     ) { inner ->
         AddApplianceContent(
             modifier = Modifier
@@ -79,7 +130,8 @@ fun AddApplianceScaffold(
                 .padding(inner)
                 .imePadding() // when keyboard shows, keep content visible
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            onSave = onSave,
+            applianceId = applianceId,
+            onSave = ::saveToFirestore,
             onCancel = onCancel
         )
     }
@@ -91,9 +143,14 @@ fun AddApplianceScaffold(
 @Composable
 private fun AddApplianceContent(
     modifier: Modifier = Modifier,
+    applianceId: String?,
     onSave: (String, Int, Float, String) -> Unit,
     onCancel: () -> Unit
 ) {
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+    val uid = auth.currentUser?.uid
+
     // UI-only state
     var name by remember { mutableStateOf("") }
     var wattText by remember { mutableStateOf("") }
@@ -101,9 +158,27 @@ private fun AddApplianceContent(
     val categories = listOf("Cooling & Heating", "Kitchen", "Entertainment", "Lighting", "Cleaning", "Other")
     var category by remember { mutableStateOf("") }
     var catExpanded by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+
+    // Prefill when editing
+    LaunchedEffect(applianceId, uid) {
+        if (applianceId != null && uid != null) {
+            loading = true
+            db.collection("users").document(uid)
+                .collection("appliances").document(applianceId)
+                .get()
+                .addOnSuccessListener { d ->
+                    name = d.getString("name") ?: ""
+                    wattText = (d.getLong("watt") ?: 0L).toString()
+                    hours = (d.getDouble("hours") ?: 0.0).toFloat()
+                    category = d.getString("category") ?: ""
+                }
+                .addOnCompleteListener { loading = false }
+        }
+    }
 
     val watt = wattText.filter { it.isDigit() }.take(5).toIntOrNull() ?: 0
-    val saveEnabled = name.isNotBlank() && watt > 0 && category.isNotBlank()
+    val saveEnabled = name.isNotBlank() && watt > 0 && category.isNotBlank() && !loading
 
     // >>> Scrollable list
     LazyColumn(
@@ -118,7 +193,10 @@ private fun AddApplianceContent(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Appliance Details", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (applianceId == null) "Appliance Details" else "Edit Appliance",
+                        style = MaterialTheme.typography.titleMedium
+                    )
                     Text(
                         "Fill in the fields below. Name and category are required.",
                         style = MaterialTheme.typography.bodySmall,
@@ -133,21 +211,23 @@ private fun AddApplianceContent(
             SectionCard(title = "Basic Info") {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { if (!loading) name = it },
                     label = { Muted("Appliance Name *") },
                     placeholder = { Muted("e.g., Air Conditioner") },
                     singleLine = true,
+                    enabled = !loading,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = wattText,
-                    onValueChange = { wattText = it },
+                    onValueChange = { if (!loading) wattText = it },
                     label = { Muted("Wattage (W) *") },
                     placeholder = { Muted("e.g., 1500") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
+                    enabled = !loading,
                     trailingIcon = {
                         // keep this compact and single-line
                         Text("W", style = MaterialTheme.typography.bodySmall, softWrap = false, maxLines = 1)
@@ -164,7 +244,10 @@ private fun AddApplianceContent(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     listOf(100, 500, 800, 1500, 2200).forEach { w ->
-                        AssistChip(onClick = { wattText = w.toString() }, label = { Text("${w}W") })
+                        AssistChip(
+                            onClick = { if (!loading) wattText = w.toString() },
+                            label = { Text("${w}W") }
+                        )
                     }
                 }
             }
@@ -175,7 +258,7 @@ private fun AddApplianceContent(
             SectionCard(title = "Usage") {
                 Text("Hours used per day", style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(6.dp))
-                HoursSlider(hours = hours, onChange = { hours = it })
+                HoursSlider(hours = hours, onChange = { if (!loading) hours = it })
             }
         }
 
@@ -184,12 +267,13 @@ private fun AddApplianceContent(
             SectionCard(title = "Category") {
                 ExposedDropdownMenuBox(
                     expanded = catExpanded,
-                    onExpandedChange = { catExpanded = it }
+                    onExpandedChange = { if (!loading) catExpanded = it }
                 ) {
                     OutlinedTextField(
                         value = category,
                         onValueChange = {},
                         readOnly = true,
+                        enabled = !loading,
                         label = { Muted("Category *") },
                         placeholder = { Muted("Select a category") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = catExpanded) },
@@ -222,6 +306,7 @@ private fun AddApplianceContent(
             Row(Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = onCancel,
+                    enabled = !loading,
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp),
@@ -237,7 +322,7 @@ private fun AddApplianceContent(
                         .weight(1f)
                         .height(48.dp),
                     shape = RoundedCornerShape(14.dp)
-                ) { Text("Save Appliance") }
+                ) { Text(if (applianceId == null) "Save Appliance" else "Save Changes") }
             }
         }
     }
