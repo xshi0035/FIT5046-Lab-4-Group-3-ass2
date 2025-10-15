@@ -32,6 +32,7 @@ import java.util.Locale
 /* ----------------------------- UI model (derived) ---------------------------- */
 
 data class Appliance(
+    val id: String,          // <-- needed for edit/delete
     val iconEmoji: String,
     val name: String,
     val spec: String,       // e.g., "1500W • 6h daily"
@@ -47,7 +48,8 @@ fun ElectricityScaffold(
     currentRoute: String = ROUTE_APPLIANCES,
     onTabSelected: (route: String) -> Unit = {},
     onBack: () -> Unit = {},
-    onAddAppliance: () -> Unit = {}
+    onAddAppliance: () -> Unit = {},
+    onEditAppliance: (id: String) -> Unit = {}   // <-- NEW
 ) {
     Scaffold(
         topBar = {
@@ -91,7 +93,10 @@ fun ElectricityScaffold(
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            ElectricityScreenFromFirestore()
+            ElectricityScreenFromFirestore(
+                onEdit = onEditAppliance,     // pass down
+                onDeleted = { /* no-op; list updates via snapshot */ }
+            )
         }
     }
 }
@@ -99,7 +104,10 @@ fun ElectricityScaffold(
 /* ------------------------------- FIRESTORE UI -------------------------------- */
 
 @Composable
-private fun ElectricityScreenFromFirestore() {
+private fun ElectricityScreenFromFirestore(
+    onEdit: (id: String) -> Unit,
+    onDeleted: () -> Unit
+) {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
     val uid = auth.currentUser?.uid
@@ -108,6 +116,10 @@ private fun ElectricityScreenFromFirestore() {
     var totalKwh by remember { mutableStateOf(0.0) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    // state for delete-confirm dialog
+    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteName by remember { mutableStateOf<String?>(null) }
 
     // Listen to Firestore: users/{uid}/appliances
     DisposableEffect(uid) {
@@ -128,7 +140,6 @@ private fun ElectricityScreenFromFirestore() {
                     }
                     var kwhTotal = 0.0
                     val items = snap?.documents?.mapNotNull { d ->
-                        // expected fields written by AddApplianceScaffold
                         val name = d.getString("name") ?: return@mapNotNull null
                         val watt = (d.getLong("watt") ?: 0L).toInt()
                         val hours = (d.getDouble("hours") ?: 0.0).toFloat()
@@ -147,6 +158,7 @@ private fun ElectricityScreenFromFirestore() {
                             else -> "🔌"
                         }
                         Appliance(
+                            id = d.id,
                             iconEmoji = emoji,
                             name = name,
                             spec = "${watt}W • ${hours}h daily",
@@ -166,9 +178,9 @@ private fun ElectricityScreenFromFirestore() {
 
     // Derived header stats
     val usageKwhText = String.format(Locale.getDefault(), "%.2f kWh", totalKwh)
-    val costText = String.format(Locale.getDefault(), "$%.2f estimated cost", totalKwh * 0.30)
-    val co2KgText = String.format(Locale.getDefault(), "CO\u2082: %.2fkg equivalent", totalKwh * 0.5)
-    val changePercent = "-0%" // placeholder (no baseline yet)
+    val costText     = String.format(Locale.getDefault(), "$%.2f estimated cost", totalKwh * 0.30)
+    val co2KgText    = String.format(Locale.getDefault(), "CO\u2082: %.2fkg equivalent", totalKwh * 0.5)
+    val changePercent = "-0%" // placeholder
 
     ElectricityScreen(
         usageKwh = usageKwhText,
@@ -176,7 +188,11 @@ private fun ElectricityScreenFromFirestore() {
         co2 = co2KgText,
         changePercent = changePercent,
         appliances = appliances,
-        suggestions = emptyList()
+        onEdit = { onEdit(it) },
+        onDelete = { id, name ->
+            pendingDeleteId = id
+            pendingDeleteName = name
+        }
     )
 
     if (isLoading && appliances.isEmpty()) {
@@ -189,6 +205,35 @@ private fun ElectricityScreenFromFirestore() {
             AssistChip(onClick = { /* no-op */ }, label = { Text(it) })
         }
     }
+
+    // Confirm Delete dialog
+    val toDeleteId = pendingDeleteId
+    if (toDeleteId != null && uid != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDeleteId = null; pendingDeleteName = null },
+            title = { Text("Delete appliance") },
+            text = { Text("Are you sure you want to delete “${pendingDeleteName ?: ""}”? This action can’t be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingDeleteId = null
+                        pendingDeleteName = null
+                        FirebaseFirestore.getInstance()
+                            .collection("users").document(uid)
+                            .collection("appliances").document(toDeleteId)
+                            .delete()
+                            .addOnSuccessListener { onDeleted() }
+                            .addOnFailureListener { /* optional: surface error */ }
+                    }
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteId = null; pendingDeleteName = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 /* --------------------------------- SCREEN ---------------------------------- */
@@ -200,7 +245,8 @@ private fun ElectricityScreen(
     co2: String,
     changePercent: String,
     appliances: List<Appliance>,
-    suggestions: List<Suggestion>
+    onEdit: (id: String) -> Unit,
+    onDelete: (id: String, name: String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -208,7 +254,6 @@ private fun ElectricityScreen(
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
     ) {
-        // "Today's Usage"
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -248,7 +293,7 @@ private fun ElectricityScreen(
             }
         }
 
-        // My Appliances header
+        // Header
         item {
             Row(
                 modifier = Modifier
@@ -258,19 +303,16 @@ private fun ElectricityScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("My Appliances", style = MaterialTheme.typography.titleMedium)
-                if (appliances.isNotEmpty()) {
-                    Text(
-                        "View Usage",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
             }
         }
 
-        // Appliance list (may be empty)
-        items(appliances) { appliance ->
-            ApplianceCard(appliance)
+        // List (may be empty)
+        items(appliances) { a ->
+            ApplianceCard(
+                appliance = a,
+                onEdit = { onEdit(a.id) },
+                onDelete = { onDelete(a.id, a.name) }
+            )
             Spacer(Modifier.height(12.dp))
         }
 
@@ -283,12 +325,6 @@ private fun ElectricityScreen(
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
             }
-        }
-
-        // (tips omitted)
-        items(suggestions) { tip ->
-            SuggestionCard(tip)
-            Spacer(Modifier.height(12.dp))
         }
     }
 }
@@ -317,7 +353,11 @@ private fun ChangePill(text: String) {
 }
 
 @Composable
-private fun ApplianceCard(appliance: Appliance) {
+private fun ApplianceCard(
+    appliance: Appliance,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -363,10 +403,10 @@ private fun ApplianceCard(appliance: Appliance) {
             Spacer(Modifier.height(12.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { /* edit – to implement */ }, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
                     Text("Edit")
                 }
-                OutlinedButton(onClick = { /* delete – to implement */ }, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
                     Text("Delete")
                 }
             }

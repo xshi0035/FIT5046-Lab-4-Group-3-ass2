@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.fit5046_lab4_group3_ass2.data.ProfileRepo
 import com.example.fit5046_lab4_group3_ass2.data.UserPrefs
 import com.example.fit5046_lab4_group3_ass2.ui.screens.*
@@ -136,19 +137,28 @@ private fun AppNav() {
             )
         }
 
+        // Appliances list
         composable(ROUTE_APPLIANCES) {
             ElectricityScaffold(
                 currentRoute = ROUTE_APPLIANCES,
                 onTabSelected = ::onTab,
                 onBack = ::goHome,
-                onAddAppliance = { nav.navigate("appliance_add") }
+                onAddAppliance = { nav.navigate("appliance_add") },
+                onEditAppliance = { id -> nav.navigate("appliance_add?applianceId=$id") } // EDIT -> Add screen with id
             )
         }
 
-        // Add Appliance: back should return to the previous destination (Appliances)
-        composable("appliance_add") {
+        // Add OR Edit appliance (optional id param)
+        composable(
+            route = "appliance_add?applianceId={applianceId}",
+            arguments = listOf(
+                navArgument("applianceId") { nullable = true; defaultValue = null }
+            )
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getString("applianceId")
             AddApplianceScaffold(
-                onBack = { nav.popBackStack() },   // <-- changed from ::goHome
+                applianceId = id,
+                onBack = { nav.popBackStack() },
                 currentRoute = ROUTE_APPLIANCES,
                 onTabSelected = ::onTab
             )
