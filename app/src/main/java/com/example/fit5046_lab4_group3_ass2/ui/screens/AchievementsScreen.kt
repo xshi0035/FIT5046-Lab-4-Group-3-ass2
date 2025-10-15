@@ -8,17 +8,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -26,22 +22,23 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.Timestamp
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
-/* ------------------------ Data models ------------------------ */
+/* -------------------------------------------------------------------------- */
+/*  Types kept so MainActivity doesn’t break, but they’re not used anymore.   */
+/* -------------------------------------------------------------------------- */
 
-data class Badge(
-    val title: String,
-    val subtitle: String,
-    val date: String
-)
-
-data class LeaderboardEntry(
-    val rank: Int,
-    val name: String,
-    val points: Int,
-    val isYou: Boolean = false
-)
-
+data class Badge(val title: String, val subtitle: String, val date: String)
+data class LeaderboardEntry(val rank: Int, val name: String, val points: Int, val isYou: Boolean = false)
 data class MonthlyProgress(
     val pointsThisMonth: Int,
     val badgesEarned: Int,
@@ -50,22 +47,80 @@ data class MonthlyProgress(
     val monthlyGoal: Int
 )
 
-/* ------------------------ Scaffold (consistent chrome) ------------------------ */
+/* ------------------------------- Firestore model --------------------------- */
+
+private data class RewardAction(
+    val id: String,
+    val title: String,
+    val description: String,
+    val points: Int,
+    val cadence: Cadence = Cadence.Daily,
+    val category: String = "electricity"
+)
+
+private enum class Cadence { Daily, Weekly }
+
+/** What we store for every claim in Firestore. */
+private data class RewardEntry(
+    val taskId: String = "",
+    val taskTitle: String = "",
+    val points: Int = 0,
+    val timestamp: Long = 0L, // millis since epoch
+    val key: String = ""
+)
+
+/* -------------------------- Our “earn points” actions ---------------------- */
+
+private val ACTIONS = listOf(
+    RewardAction(
+        id = "reduce_peak",
+        title = "Avoid Peak-Hour Usage",
+        description = "Keep heavy appliances off during 6–9pm today.",
+        points = 120,
+        cadence = Cadence.Daily
+    ),
+    RewardAction(
+        id = "turn_off_standby",
+        title = "Eliminate Standby Power",
+        description = "Turn off 3 devices at the wall before sleep.",
+        points = 80,
+        cadence = Cadence.Daily
+    ),
+    RewardAction(
+        id = "optimize_washing",
+        title = "Cold Wash & Full Load",
+        description = "Wash clothes in cold water with a full load.",
+        points = 150,
+        cadence = Cadence.Weekly
+    ),
+    RewardAction(
+        id = "lighting_audit",
+        title = "Lighting Audit",
+        description = "Replace/plan to replace 5 bulbs with LEDs.",
+        points = 200,
+        cadence = Cadence.Weekly
+    )
+)
+
+/* ------------------------ Scaffold (keeps your navigation) ----------------- */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AchievementsScaffold(
+    // Legacy params kept for compatibility; they are ignored by the Firestore UI.
     totalPoints: Int,
     electricityPoints: Int,
     badges: List<Badge>,
     leaderboard: List<LeaderboardEntry>,
     monthly: MonthlyProgress,
-    // NAVIGATION
+    // NAV – unchanged
     currentRoute: String = ROUTE_REWARDS,
     onTabSelected: (route: String) -> Unit = {},
-    onBack: () -> Unit = {},                 // should go to Home
+    onBack: () -> Unit = {},
     onNotifications: () -> Unit = {}
 ) {
+    val snackbar = remember { SnackbarHostState() }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -80,7 +135,6 @@ fun AchievementsScaffold(
                         IconButton(onClick = onNotifications) {
                             Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                         }
-                        // small unread dot
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
@@ -97,38 +151,170 @@ fun AchievementsScaffold(
                 currentRoute = currentRoute,
                 onTabSelected = onTabSelected
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbar) }
     ) { inner ->
-        AchievementsContent(
-            totalPoints = totalPoints,
-            electricityPoints = electricityPoints,
-            badges = badges,
-            leaderboard = leaderboard,
-            monthly = monthly,
+        RewardsScreenFirestore(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 16.dp),
+            snackbar = snackbar
         )
     }
 }
 
-/* ------------------------ Screen content ------------------------ */
+/* --------------------------- Firestore-backed screen ----------------------- */
 
 @Composable
-private fun AchievementsContent(
-    totalPoints: Int,
-    electricityPoints: Int,
-    badges: List<Badge>,
-    leaderboard: List<LeaderboardEntry>,
-    monthly: MonthlyProgress,
-    modifier: Modifier = Modifier
+private fun RewardsScreenFirestore(
+    modifier: Modifier = Modifier,
+    snackbar: SnackbarHostState
 ) {
+    val scope = rememberCoroutineScope()
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+    val uid = auth.currentUser?.uid
+
+    // UI state
+    var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var entries by remember { mutableStateOf<List<RewardEntry>>(emptyList()) }
+    var todayClaimed by remember { mutableStateOf<Set<String>>(emptySet()) }   // taskIds claimed today
+    var weekClaimed by remember { mutableStateOf<Set<String>>(emptySet()) }    // taskIds claimed this week
+
+    // Listen to rewards collection (always return a DisposableEffectResult)
+    DisposableEffect(uid) {
+        if (uid == null) {
+            isLoading = false
+            error = "You’re not signed in."
+            return@DisposableEffect onDispose { }
+        }
+
+        val reg: ListenerRegistration =
+            db.collection("users").document(uid).collection("rewards")
+                .addSnapshotListener { snap, e ->
+                    if (e != null) {
+                        error = e.localizedMessage ?: "Failed to load rewards."
+                        isLoading = false
+                        return@addSnapshotListener
+                    }
+                    val list = snap?.documents?.mapNotNull { d ->
+                        // Robust timestamp extraction: supports Long and com.google.firebase.Timestamp
+                        val tsMillis: Long = when (val raw = d.get("timestamp")) {
+                            is Long -> raw
+                            is Timestamp -> raw.toDate().time
+                            else -> 0L
+                        }
+                        RewardEntry(
+                            taskId = d.getString("taskId") ?: return@mapNotNull null,
+                            taskTitle = d.getString("taskTitle") ?: "",
+                            points = (d.getLong("points") ?: 0L).toInt(),
+                            timestamp = tsMillis,
+                            key = d.id
+                        )
+                    } ?: emptyList()
+
+                    entries = list
+                    isLoading = false
+                    error = null
+
+                    // compute today's and this week's claimed sets
+                    val c = Calendar.getInstance()
+                    val todayKey = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(c.time)
+                    val weekOfYear = c.get(Calendar.WEEK_OF_YEAR)
+                    val year = c.get(Calendar.YEAR)
+
+                    todayClaimed = list
+                        .filter {
+                            val key = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+                                .format(Date(it.timestamp))
+                            key == todayKey
+                        }
+                        .map { it.taskId }
+                        .toSet()
+
+                    weekClaimed = list
+                        .filter {
+                            val cal = Calendar.getInstance().apply { time = Date(it.timestamp) }
+                            cal.get(Calendar.WEEK_OF_YEAR) == weekOfYear &&
+                                    cal.get(Calendar.YEAR) == year
+                        }
+                        .map { it.taskId }
+                        .toSet()
+                }
+
+        onDispose { reg.remove() }
+    }
+
+    // Derived totals
+    val calendar = remember { Calendar.getInstance() }
+    val month = calendar.get(Calendar.MONTH)
+    val year = calendar.get(Calendar.YEAR)
+    val pointsThisMonth = entries.filter {
+        val c = Calendar.getInstance().apply { time = Date(it.timestamp) }
+        c.get(Calendar.MONTH) == month && c.get(Calendar.YEAR) == year
+    }.sumOf { it.points }
+
+    val daysActive = entries.map {
+        SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(it.timestamp))
+    }.toSet().size
+
+    val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val monthlyGoal = 1000 // tweak if you want to pull from user profile
+    val totalPoints = entries.sumOf { it.points }
+
+    // Claim handler
+    fun claim(task: RewardAction) {
+        val u = auth.currentUser?.uid
+        if (u == null) {
+            scope.launch { snackbar.showSnackbar("Please sign in to claim points.") }
+            return
+        }
+        val sdf = when (task.cadence) {
+            Cadence.Daily -> SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+            Cadence.Weekly -> SimpleDateFormat("yyyy-'W'ww", Locale.getDefault())
+        }
+        val periodKey = sdf.format(Date())
+        val docId = "${task.id}_$periodKey" // Prevent duplicate claim in the period.
+
+        val data = mapOf(
+            "taskId" to task.id,
+            "taskTitle" to task.title,
+            "points" to task.points,
+            "timestamp" to FieldValue.serverTimestamp(),
+            "periodKey" to periodKey
+        )
+        db.collection("users").document(u).collection("rewards").document(docId)
+            .get()
+            .addOnSuccessListener { snap ->
+                if (snap.exists()) {
+                    scope.launch {
+                        snackbar.showSnackbar("Already claimed for this ${task.cadence.name.lowercase()}")
+                    }
+                } else {
+                    db.collection("users").document(u).collection("rewards").document(docId)
+                        .set(data)
+                        .addOnSuccessListener {
+                            scope.launch { snackbar.showSnackbar("You earned +${task.points} EcoPoints!") }
+                        }
+                        .addOnFailureListener { e ->
+                            scope.launch { snackbar.showSnackbar(e.localizedMessage ?: "Failed to claim") }
+                        }
+                }
+            }
+            .addOnFailureListener { e ->
+                scope.launch { snackbar.showSnackbar(e.localizedMessage ?: "Failed to claim") }
+            }
+    }
+
+    // UI
     LazyColumn(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        // EcoPoints tracker (electricity-focused)
+        // EcoPoints tracker (header)
         item {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(16.dp)) {
@@ -139,14 +325,14 @@ private fun AchievementsContent(
                     ) {
                         Text("EcoPoints Tracker", style = MaterialTheme.typography.titleMedium)
                         Icon(
-                            imageVector = Icons.Filled.EmojiEvents,
+                            imageVector = Icons.Filled.Bolt,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "%,d".format(totalPoints),
+                        text = String.format(Locale.getDefault(), "%,d", totalPoints),
                         style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.SemiBold),
                     )
                     Spacer(Modifier.height(12.dp))
@@ -155,15 +341,15 @@ private fun AchievementsContent(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         StatChip(
-                            title = "Electricity Points",
-                            value = electricityPoints,
+                            title = "This Month",
+                            value = pointsThisMonth,
                             icon = Icons.Filled.Bolt,
                             modifier = Modifier.weight(1f)
                         )
                         StatChip(
-                            title = "Badges Earned",
-                            value = monthly.badgesEarned,
-                            icon = Icons.Filled.EmojiEvents,
+                            title = "Days Active",
+                            value = daysActive,
+                            icon = Icons.Filled.Bolt,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -171,20 +357,21 @@ private fun AchievementsContent(
             }
         }
 
-        // Your Badges
+        // Earn more points (actions)
         item {
             SectionCard(
-                title = "Your Badges",
-                trailing = {
-                    Icon(
-                        Icons.Filled.EmojiEvents,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                title = "Earn More Points",
+                trailing = { }
             ) {
-                badges.forEach { b ->
+                ACTIONS.forEach { action ->
+                    val alreadyClaimed = when (action.cadence) {
+                        Cadence.Daily -> todayClaimed.contains(action.id)
+                        Cadence.Weekly -> weekClaimed.contains(action.id)
+                    }
                     ListRow(
+                        headline = action.title,
+                        supporting = "${action.description} • +${action.points}",
+                        trailing = if (alreadyClaimed) "Claimed" else null,
                         leading = {
                             Surface(
                                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -192,81 +379,43 @@ private fun AchievementsContent(
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Filled.EmojiEvents, contentDescription = null)
+                                    Icon(Icons.Filled.Bolt, contentDescription = null)
                                 }
                             }
-                        },
-                        headline = b.title,
-                        supporting = b.subtitle,
-                        trailing = b.date
+                        }
                     )
-                    Divider()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            enabled = !alreadyClaimed && !isLoading,
+                            onClick = { claim(action) },
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(if (alreadyClaimed) "Claimed" else "Claim") }
+                    }
+                    HorizontalDivider()
                 }
             }
         }
 
-        // Community Leaderboard
-        item {
-            SectionCard(
-                title = "Community Leaderboard",
-                trailing = {
-                    Icon(
-                        Icons.Filled.EmojiEvents,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            ) {
-                leaderboard.forEach { e ->
-                    ListRow(
-                        leading = { RankAvatar(rank = e.rank, isYou = e.isYou) },
-                        headline = if (e.isYou) "Your Rank" else e.name,
-                        supporting = "%,d points".format(e.points),
-                        trailing = if (e.isYou) null else " "
-                    )
-                    Divider()
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp, horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Community Average", style = MaterialTheme.typography.bodyMedium)
-                    val avg = leaderboard.map { it.points }.average().toInt()
-                    Text("%,d points".format(avg), style = MaterialTheme.typography.bodyMedium)
-                }
-                Text(
-                    text = "You're 54% above average!",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-
-        // Monthly Progress
+        // Monthly Progress (kept)
         item {
             SectionCard(
                 title = "Monthly Progress",
-                trailing = {
-                    Icon(
-                        Icons.Filled.EmojiEvents,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                trailing = {}
             ) {
-                InfoRow("Points This Month", "%,d pts".format(monthly.pointsThisMonth))
-                InfoRow("Badges Earned", "${monthly.badgesEarned} badges")
-                InfoRow("Days Active", "${monthly.daysActive} / ${monthly.daysInMonth} days")
+                InfoRow(
+                    "Points This Month",
+                    String.format(Locale.getDefault(), "%,d pts", pointsThisMonth)
+                )
+                InfoRow("Days Active", "$daysActive / $daysInMonth days")
                 Spacer(Modifier.height(8.dp))
-                val progress = (monthly.pointsThisMonth.toFloat() / monthly.monthlyGoal)
-                    .coerceIn(0f, 1f)
+                val progress = (pointsThisMonth.toFloat() / 1000f).coerceIn(0f, 1f)
                 Text(
-                    "Monthly Goal  ${monthly.pointsThisMonth} / ${monthly.monthlyGoal}",
+                    "Monthly Goal  ${String.format(Locale.getDefault(), "%,d", pointsThisMonth)} / 1,000",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
                 )
@@ -282,11 +431,22 @@ private fun AchievementsContent(
             }
         }
 
-        item { Spacer(Modifier.height(16.dp)) }
+        item { Spacer(Modifier.height(8.dp)) }
+    }
+
+    if (isLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    }
+    error?.let {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+            AssistChip(onClick = { /* no-op */ }, label = { Text(it) })
+        }
     }
 }
 
-/* ------------------------ Reusable pieces ------------------------ */
+/* ------------------------ Reusable bits (unchanged style) ------------------ */
 
 @Composable
 private fun InfoRow(label: String, value: String) {
@@ -318,7 +478,7 @@ private fun SectionCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
-                trailing?.invoke()
+                trailing?.let { it() }
             }
             Column(Modifier.padding(bottom = contentPadding)) { content() }
         }
@@ -354,7 +514,7 @@ private fun ListRow(
                     supporting,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+                    maxLines = 2
                 )
             }
         }
@@ -373,7 +533,7 @@ private fun ListRow(
 private fun StatChip(
     title: String,
     value: Int,
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -390,7 +550,11 @@ private fun StatChip(
                 Icon(icon, contentDescription = null, modifier = Modifier.padding(8.dp))
             }
             Column {
-                Text("%,d".format(value), fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                Text(
+                    String.format(Locale.getDefault(), "%,d", value),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp
+                )
                 Text(
                     title,
                     style = MaterialTheme.typography.bodySmall,
@@ -401,63 +565,18 @@ private fun StatChip(
     }
 }
 
-@Composable
-private fun RankAvatar(rank: Int, isYou: Boolean) {
-    val bg = if (isYou) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-    val fg = if (isYou) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-    Surface(shape = CircleShape, color = bg) {
-        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Icon(
-                    Icons.Filled.Person,
-                    contentDescription = null,
-                    tint = fg,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text("#$rank", color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
-
-/* ------------------------ Previews ------------------------ */
+/* -------------------------------- PREVIEW ---------------------------------- */
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
-fun Preview_AchievementsScreen() {
-    val badges = remember {
-        listOf(
-            Badge("Peak Shaver", "Avoided peak-hour usage for 7 days", "Jan 15"),
-            Badge("100 kWh Saved", "Reduced electricity consumption", "Jan 10"),
-            Badge("30-day Streak", "Consistent daily logging", "Dec 28")
-        )
-    }
-    val leaderboard = remember {
-        listOf(
-            LeaderboardEntry(rank = 7, name = "Your Rank", points = 2_847, isYou = true),
-            LeaderboardEntry(rank = 1, name = "PowerSaverPro", points = 4_892),
-            LeaderboardEntry(rank = 2, name = "GreenThumb_42", points = 4_156),
-            LeaderboardEntry(rank = 3, name = "WattWatcher", points = 3_924)
-        )
-    }
-    val monthly = MonthlyProgress(
-        pointsThisMonth = 847,
-        badgesEarned = 3,
-        daysActive = 18,
-        daysInMonth = 31,
-        monthlyGoal = 1000
-    )
-
+fun Preview_Rewards() {
     FIT5046Lab4Group3ass2Theme {
         AchievementsScaffold(
-            totalPoints = 2_847,
-            electricityPoints = 1_523,
-            badges = badges,
-            leaderboard = leaderboard,
-            monthly = monthly
+            totalPoints = 0,
+            electricityPoints = 0,
+            badges = emptyList(),
+            leaderboard = emptyList(),
+            monthly = MonthlyProgress(0, 0, 0, 30, 1000)
         )
     }
 }
