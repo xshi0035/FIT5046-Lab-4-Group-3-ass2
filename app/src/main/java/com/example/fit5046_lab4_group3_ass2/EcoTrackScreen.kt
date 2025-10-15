@@ -83,6 +83,7 @@ fun EcoTrackScaffold(
     kpiTodayText: String = "8.2",
     kpiVsYesterdayText: String = "-12%",
     kpiCostTodayText: String = "$2.46",
+    onBack: () -> Unit = {},
     // Which tab should appear selected in the bar
     currentRoute: String = ROUTE_ECOTRACK,
 
@@ -116,7 +117,7 @@ fun EcoTrackScaffold(
             CenterAlignedTopAppBar(
                 title = { Text("EcoTrack") },
                 navigationIcon = {
-                    IconButton(onClick = { /* UI only */ }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },

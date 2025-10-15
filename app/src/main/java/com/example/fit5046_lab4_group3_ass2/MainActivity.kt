@@ -184,10 +184,10 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
         }
 
         composable(ROUTE_ECOTRACK) {
-            com.example.fit5046_lab4_group3_ass2.EcoTrackScaffold(
-                /*currentRoute = ROUTE_ECOTRACK,
+            EcoTrackScaffold(
+                currentRoute = ROUTE_ECOTRACK,
                 onTabSelected = ::onTab,
-                onBack = ::goHome,*/
+                onBack = ::goHome,
                 viewModel = ecoTrackScreenViewModel
             )
         }
