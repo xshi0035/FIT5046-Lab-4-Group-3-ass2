@@ -48,17 +48,6 @@ fun HomePageScaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Home") },
-                navigationIcon = {
-                    // (Left icon kept from your UI; no-op)
-                    Surface(
-                        shape = CircleShape,
-                        tonalElevation = 1.dp,
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .size(32.dp)
-                            .clip(CircleShape)
-                    ) { Box(contentAlignment = Alignment.Center) { Text("←") } }
-                },
                 actions = {
                     Box {
                         IconButton(onClick = onNotificationsClick) {
