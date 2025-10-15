@@ -29,19 +29,46 @@ class StorageWorker(appContext: Context, workerParams: WorkerParameters) :
 
         val helper = Storage(applicationContext, sensorRepo, itemsRepo, dayUseRepo)
 
+        //notification
         val info_for_notification = helper.getNotificationInfo()
 
-        //send test notification
-        createNotificationChannel()
-        var builder = NotificationCompat.Builder(applicationContext, "EcoTrack")
-            .setSmallIcon(R.drawable.outline_info_24)
-            .setContentTitle("EcoTrack Info")
-            .setContentText(info_for_notification[0].toString())
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        var high_use = false
+        var high_price = false
 
-        val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(0, builder.build())
+        if (info_for_notification[0] > 3) {
+            high_use = true
+        }
 
+        if (info_for_notification[1] > 100) {
+            high_price = true
+        }
+
+        var notification_message = ""
+
+        if (high_use) {
+            notification_message += "High energy use: "
+            notification_message += info_for_notification[0].toString()
+            notification_message += " kW\n"
+        }
+        if (high_price) {
+            notification_message += "High electricity price: "
+            notification_message += info_for_notification[1].toString()
+            notification_message += " $/MWh\n"
+        }
+        //don't send a notification if there's no issue
+        if (!notification_message.isEmpty()) {
+            createNotificationChannel()
+            var builder = NotificationCompat.Builder(applicationContext, "EcoTrack")
+                .setSmallIcon(R.drawable.outline_info_24)
+                .setContentTitle("EcoTrack")
+                .setContentText(notification_message)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+
+            val notificationManager =
+                applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(0, builder.build())
+        }
+        //store new record
         try {
             helper.storeRecord()
             Log.e("WORKER", "Record stored successfully")
@@ -62,7 +89,8 @@ class StorageWorker(appContext: Context, workerParams: WorkerParameters) :
                 description = "EcoTrack"
             }
             // Register the channel with the system.
-            val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notificationManager =
+                applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
     }
