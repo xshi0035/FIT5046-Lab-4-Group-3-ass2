@@ -1,11 +1,6 @@
 package com.example.fit5046_lab4_group3_ass2
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
-import android.os.Build
-import android.provider.Settings.Global.getString
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +28,6 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -61,19 +55,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat.getSystemService
+import com.example.fit5046_lab4_group3_ass2.ui.screens.EcoBottomBar
+import com.example.fit5046_lab4_group3_ass2.ui.screens.ROUTE_ECOTRACK
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
-import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.utils.ColorTemplate
-import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.math.max
+
 
 /* ------------------------------- SCAFFOLD ------------------------------- */
 
@@ -88,7 +82,12 @@ fun EcoTrackScaffold(
     selectedPeriodIndex: Int = 0,
     kpiTodayText: String = "8.2",
     kpiVsYesterdayText: String = "-12%",
-    kpiCostTodayText: String = "$2.46"
+    kpiCostTodayText: String = "$2.46",
+    // Which tab should appear selected in the bar
+    currentRoute: String = ROUTE_ECOTRACK,
+
+    // Bottom bar navigation
+    onTabSelected: (route: String) -> Unit = {},
 ) {
     val navItems: List<Pair<String, ImageVector>> = listOf(
         "Home" to Icons.Filled.Home,
@@ -135,6 +134,12 @@ fun EcoTrackScaffold(
                         )
                     }
                 }
+            )
+        },
+        bottomBar = {
+            EcoBottomBar(
+                currentRoute = currentRoute,
+                onTabSelected = onTabSelected
             )
         }
     ) { inner ->
@@ -206,16 +211,24 @@ fun EcoTrackScreen(
         }
 
         //item { ChartPlaceholderCard() }
-        item {LineChartScreen(viewModel)}
+        item { LineChartScreen(viewModel) }
 
         item {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                KpiCard(value = kpiTodayText,       label = "Today (kWh)",  modifier = Modifier.weight(1f))
-                KpiCard(value = kpiVsYesterdayText, label = "vs Yesterday", modifier = Modifier.weight(1f))
-                KpiCard(value = kpiCostTodayText,   label = "Cost Today",   modifier = Modifier.weight(1f))
+                KpiCard(value = kpiTodayText, label = "Today (kWh)", modifier = Modifier.weight(1f))
+                KpiCard(
+                    value = kpiVsYesterdayText,
+                    label = "vs Yesterday",
+                    modifier = Modifier.weight(1f)
+                )
+                KpiCard(
+                    value = kpiCostTodayText,
+                    label = "Cost Today",
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 
@@ -273,8 +286,8 @@ private fun PeriodChips(selectedIndex: Int) {
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            SegChip("Daily",   selectedIndex == 0, Modifier.weight(1f), sel, bg)
-            SegChip("Weekly",  selectedIndex == 1, Modifier.weight(1f), sel, bg)
+            SegChip("Daily", selectedIndex == 0, Modifier.weight(1f), sel, bg)
+            SegChip("Weekly", selectedIndex == 1, Modifier.weight(1f), sel, bg)
             SegChip("Monthly", selectedIndex == 2, Modifier.weight(1f), sel, bg)
         }
     }
@@ -306,9 +319,11 @@ private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
         PriceSeverity.Severe -> Triple(
             MaterialTheme.colorScheme.errorContainer, "Severe", Icons.Filled.Warning
         )
+
         PriceSeverity.High -> Triple(
             MaterialTheme.colorScheme.tertiaryContainer, "High", Icons.Filled.Info
         )
+
         PriceSeverity.Normal -> Triple(
             MaterialTheme.colorScheme.surfaceVariant, "Normal", Icons.Filled.Info
         )
@@ -351,12 +366,14 @@ private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
             "Prices are very high (> 200 AUD/MWh). Cutting back now can save a lot.",
             Icons.Filled.Warning
         )
+
         PriceSeverity.High -> Quad(
             MaterialTheme.colorScheme.tertiaryContainer,
             "High price alert",
             "Electricity prices are high (> 100 AUD/MWh). Consider reducing usage.",
             Icons.Filled.Info
         )
+
         PriceSeverity.Normal -> return
     }
 
@@ -513,66 +530,63 @@ private fun ImpactLine(label: String, valueRight: String) {
 }
 
 @Composable
-fun LineChartScreen(viewModel: EcoTrackScreenViewModel) {
-    val flow = viewModel.allDayUses
+fun LineChartScreen(viewModel: EcoTrackScreenViewModel, days_to_show: Int = 1) {
+    val dayUseList by viewModel.allDayUses.collectAsState(emptyList())
 
-    val dayUseList by flow.collectAsState(initial = emptyList())
+    val dayUseList_to_show = dayUseList.takeLast(days_to_show * 4 * 24)
 
-    val lineEntries : List<Entry>
-
-    if (!dayUseList.isEmpty()) {
-        Log.e("DAY USE CHART DEBUG LIST", dayUseList.toString())
-
-        lineEntries = dayUseList.map { dayUse ->
-            Entry(dayUse.uid.toFloat(), dayUse.use)
+    if (dayUseList_to_show.isNotEmpty()) {
+        val entries = dayUseList_to_show.mapIndexed { index, dayUse ->
+            Entry(index.toFloat(), dayUse.use)
         }
 
-        Log.e("DAY USE CHART DEBUG ENTRIES", lineEntries.toString())
-    } else {
-        lineEntries = listOf(
-            Entry(0f, 1070f),
-            Entry(1f, 4050f),
-            Entry(2f, 3890f),
-            Entry(3f, 5599f),
-            Entry(4f, 2300f),
-            Entry(5f, 4055f)
-        )
-    }
+        val dataSet = LineDataSet(entries, "Energy use (values recorded every 15 minutes)").apply {
+            colors = ColorTemplate.COLORFUL_COLORS.toList()
+        }
 
-    val lineDataSet = LineDataSet(lineEntries, "Steps")
-    lineDataSet.colors = ColorTemplate.COLORFUL_COLORS.toList()
-    val lineData = LineData(lineDataSet)
-    AndroidView(
-        modifier = Modifier.fillMaxWidth().height(300.dp),
-        factory = { context ->
-            LineChart(context).apply {
-                data = lineData
-                description.isEnabled = false
-                xAxis.position = XAxis.XAxisPosition.BOTTOM
-                xAxis.valueFormatter =
-                    IndexAxisValueFormatter(
-                        listOf(
-                            "Sun", "Mon", "Tues", "Wed", "Thurs",
-                            "Fri", "Sat"
-                        )
-                    )
-                animateY(4000)
+        val lineData = LineData(dataSet)
+        lineData.setDrawValues(true)
+
+        AndroidView(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp),
+            factory = { context ->
+                LineChart(context).apply {
+                    data = lineData
+                    description.isEnabled = false
+                    xAxis.position = XAxis.XAxisPosition.BOTTOM
+                    xAxis.setDrawLabels(false)
+                    animateY(4000)
+                    axisLeft.setAxisMinimum(0f)
+                    axisLeft.setAxisMaximum(4f)
+                }
             }
-        }
-    )
+        )
+    } else {
+        Text("Loading chart data...")
+
+    }
 }
 
-data class CsvPowerRecord(val index: String, val Date: String, val Time: String, val Global_active_power: String )
+data class CsvPowerRecord(
+    val index: String,
+    val Date: String,
+    val Time: String,
+    val Global_active_power: String
+)
 
 object CsvRecordsObject {
     private var records: List<CsvPowerRecord>? = null
     fun setRecords(new_records: List<CsvPowerRecord>) {
         records = new_records
     }
+
     fun getRecords(): List<CsvPowerRecord>? {
         return records
     }
 }
+
 fun loadHeartRateData(context: Context, fileName: String) {
     val records = mutableListOf<CsvPowerRecord>()
     try {

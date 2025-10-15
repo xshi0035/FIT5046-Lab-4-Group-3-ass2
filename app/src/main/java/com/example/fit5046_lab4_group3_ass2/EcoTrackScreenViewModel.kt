@@ -1,11 +1,13 @@
 package com.example.fit5046_lab4_group3_ass2
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.fit5046_lab4_group3_ass2.api.ItemsRepository
@@ -79,6 +81,7 @@ class EcoTrackScreenViewModel(application: Application) : AndroidViewModel(appli
     // complicated functionality
     // this is for setting up the work to store records in the background
     fun storeARecord() {
+        WorkManager.getInstance(application).cancelAllWork()
         //print the records for testing:
         val records = cRepository.allDayUses
         viewModelScope.launch {
@@ -90,7 +93,8 @@ class EcoTrackScreenViewModel(application: Application) : AndroidViewModel(appli
         val workRequest = PeriodicWorkRequestBuilder<StorageWorker>(
             15, TimeUnit.MINUTES
         ).build()
-        WorkManager.getInstance(application).enqueue(workRequest)
+        WorkManager.getInstance(application).enqueueUniquePeriodicWork("EcoTrack update",
+            ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE, workRequest)
         return
     }
 }

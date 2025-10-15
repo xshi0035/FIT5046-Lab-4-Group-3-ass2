@@ -13,24 +13,9 @@ class SensorDataProvider(
 ) {
     private val refreshIntervalMs: Long = 60000
 
-    /*fun sensorDataFlow(): Flow<String> {
-        val csv_records = CsvRecordsObject.getRecords()
-        var i = 0
-        val tempFlow: Flow<String> = flow {
-            while (true) {
-                emit(csv_records!![i].Global_active_power)
-                delay(refreshIntervalMs*60) // update every minute, like the actual data does. causes horrible delay when opening app???
-                if (i < 260639)
-                    i++
-                else
-                    i = 0
-            }
-        }
-        return tempFlow
-    }*/
     private fun tempFlow(): Flow<String> = flow {
         val csv_records = CsvRecordsObject.getRecords()
-        var i = 0
+        var i = (0..1000).random()
         while (true) {
             emit(csv_records!![i].Global_active_power)
             delay(refreshIntervalMs) // update every minute, like the actual data does. causes horrible delay when opening app???
