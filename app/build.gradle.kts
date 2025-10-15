@@ -71,4 +71,5 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("com.google.firebase:firebase-firestore")
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
+    implementation("com.google.firebase:firebase-functions")
 }

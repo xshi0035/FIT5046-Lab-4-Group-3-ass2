@@ -21,12 +21,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fit5046_lab4_group3_ass2.data.GeneratedTask
+import com.example.fit5046_lab4_group3_ass2.data.RewardEntry
+import com.example.fit5046_lab4_group3_ass2.data.RewardsRepo
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FieldValue
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ListenerRegistration
-import com.google.firebase.Timestamp
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -34,7 +32,7 @@ import java.util.Date
 import java.util.Locale
 
 /* -------------------------------------------------------------------------- */
-/*  Types kept so MainActivity doesn’t break, but they’re not used anymore.   */
+/*  Types kept so MainActivity doesn’t break, but they’re not used directly.  */
 /* -------------------------------------------------------------------------- */
 
 data class Badge(val title: String, val subtitle: String, val date: String)
@@ -47,73 +45,16 @@ data class MonthlyProgress(
     val monthlyGoal: Int
 )
 
-/* ------------------------------- Firestore model --------------------------- */
-
-private data class RewardAction(
-    val id: String,
-    val title: String,
-    val description: String,
-    val points: Int,
-    val cadence: Cadence = Cadence.Daily,
-    val category: String = "electricity"
-)
-
-private enum class Cadence { Daily, Weekly }
-
-/** What we store for every claim in Firestore. */
-private data class RewardEntry(
-    val taskId: String = "",
-    val taskTitle: String = "",
-    val points: Int = 0,
-    val timestamp: Long = 0L, // millis since epoch
-    val key: String = ""
-)
-
-/* -------------------------- Our “earn points” actions ---------------------- */
-
-private val ACTIONS = listOf(
-    RewardAction(
-        id = "reduce_peak",
-        title = "Avoid Peak-Hour Usage",
-        description = "Keep heavy appliances off during 6–9pm today.",
-        points = 120,
-        cadence = Cadence.Daily
-    ),
-    RewardAction(
-        id = "turn_off_standby",
-        title = "Eliminate Standby Power",
-        description = "Turn off 3 devices at the wall before sleep.",
-        points = 80,
-        cadence = Cadence.Daily
-    ),
-    RewardAction(
-        id = "optimize_washing",
-        title = "Cold Wash & Full Load",
-        description = "Wash clothes in cold water with a full load.",
-        points = 150,
-        cadence = Cadence.Weekly
-    ),
-    RewardAction(
-        id = "lighting_audit",
-        title = "Lighting Audit",
-        description = "Replace/plan to replace 5 bulbs with LEDs.",
-        points = 200,
-        cadence = Cadence.Weekly
-    )
-)
-
-/* ------------------------ Scaffold (keeps your navigation) ----------------- */
+/* ------------------------ Scaffold (navigation unchanged) ------------------ */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AchievementsScaffold(
-    // Legacy params kept for compatibility; they are ignored by the Firestore UI.
     totalPoints: Int,
     electricityPoints: Int,
     badges: List<Badge>,
     leaderboard: List<LeaderboardEntry>,
     monthly: MonthlyProgress,
-    // NAV – unchanged
     currentRoute: String = ROUTE_REWARDS,
     onTabSelected: (route: String) -> Unit = {},
     onBack: () -> Unit = {},
@@ -154,7 +95,7 @@ fun AchievementsScaffold(
         },
         snackbarHost = { SnackbarHost(snackbar) }
     ) { inner ->
-        RewardsScreenFirestore(
+        RewardsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
@@ -164,93 +105,52 @@ fun AchievementsScaffold(
     }
 }
 
-/* --------------------------- Firestore-backed screen ----------------------- */
+/* --------------------------- Rewards screen (repo) ------------------------- */
 
 @Composable
-private fun RewardsScreenFirestore(
+private fun RewardsScreen(
     modifier: Modifier = Modifier,
     snackbar: SnackbarHostState
 ) {
     val scope = rememberCoroutineScope()
-    val auth = remember { FirebaseAuth.getInstance() }
-    val db = remember { FirebaseFirestore.getInstance() }
-    val uid = auth.currentUser?.uid
+    val repo = remember { RewardsRepo() }
 
-    // UI state
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+
     var entries by remember { mutableStateOf<List<RewardEntry>>(emptyList()) }
-    var todayClaimed by remember { mutableStateOf<Set<String>>(emptySet()) }   // taskIds claimed today
-    var weekClaimed by remember { mutableStateOf<Set<String>>(emptySet()) }    // taskIds claimed this week
+    var tasks by remember { mutableStateOf<List<GeneratedTask>>(emptyList()) }
 
-    // Listen to rewards collection (always return a DisposableEffectResult)
-    DisposableEffect(uid) {
-        if (uid == null) {
-            isLoading = false
-            error = "You’re not signed in."
-            return@DisposableEffect onDispose { }
-        }
-
-        val reg: ListenerRegistration =
-            db.collection("users").document(uid).collection("rewards")
-                .addSnapshotListener { snap, e ->
-                    if (e != null) {
-                        error = e.localizedMessage ?: "Failed to load rewards."
-                        isLoading = false
-                        return@addSnapshotListener
-                    }
-                    val list = snap?.documents?.mapNotNull { d ->
-                        // Robust timestamp extraction: supports Long and com.google.firebase.Timestamp
-                        val tsMillis: Long = when (val raw = d.get("timestamp")) {
-                            is Long -> raw
-                            is Timestamp -> raw.toDate().time
-                            else -> 0L
-                        }
-                        RewardEntry(
-                            taskId = d.getString("taskId") ?: return@mapNotNull null,
-                            taskTitle = d.getString("taskTitle") ?: "",
-                            points = (d.getLong("points") ?: 0L).toInt(),
-                            timestamp = tsMillis,
-                            key = d.id
-                        )
-                    } ?: emptyList()
-
-                    entries = list
-                    isLoading = false
-                    error = null
-
-                    // compute today's and this week's claimed sets
-                    val c = Calendar.getInstance()
-                    val todayKey = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(c.time)
-                    val weekOfYear = c.get(Calendar.WEEK_OF_YEAR)
-                    val year = c.get(Calendar.YEAR)
-
-                    todayClaimed = list
-                        .filter {
-                            val key = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-                                .format(Date(it.timestamp))
-                            key == todayKey
-                        }
-                        .map { it.taskId }
-                        .toSet()
-
-                    weekClaimed = list
-                        .filter {
-                            val cal = Calendar.getInstance().apply { time = Date(it.timestamp) }
-                            cal.get(Calendar.WEEK_OF_YEAR) == weekOfYear &&
-                                    cal.get(Calendar.YEAR) == year
-                        }
-                        .map { it.taskId }
-                        .toSet()
-                }
-
-        onDispose { reg.remove() }
+    // Claims
+    DisposableEffect(Unit) {
+        val stop = repo.listenClaims(
+            onChange = { list ->
+                entries = list
+                isLoading = false
+                error = null
+            },
+            onError = { e ->
+                error = e.localizedMessage ?: "Failed to load rewards."
+                isLoading = false
+            }
+        )
+        onDispose { stop() }
     }
 
-    // Derived totals
+    // Tasks (today + current week)
+    DisposableEffect(Unit) {
+        val stop = repo.listenTasks(
+            onChange = { tasks = it },
+            onError = { e -> error = e.localizedMessage }
+        )
+        onDispose { stop() }
+    }
+
+    // Header stats
     val calendar = remember { Calendar.getInstance() }
     val month = calendar.get(Calendar.MONTH)
     val year = calendar.get(Calendar.YEAR)
+
     val pointsThisMonth = entries.filter {
         val c = Calendar.getInstance().apply { time = Date(it.timestamp) }
         c.get(Calendar.MONTH) == month && c.get(Calendar.YEAR) == year
@@ -261,60 +161,20 @@ private fun RewardsScreenFirestore(
     }.toSet().size
 
     val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val monthlyGoal = 1000 // tweak if you want to pull from user profile
     val totalPoints = entries.sumOf { it.points }
 
-    // Claim handler
-    fun claim(task: RewardAction) {
-        val u = auth.currentUser?.uid
-        if (u == null) {
-            scope.launch { snackbar.showSnackbar("Please sign in to claim points.") }
-            return
+    fun claim(t: GeneratedTask) {
+        repo.claimTask(t) { ok, msg ->
+            scope.launch { snackbar.showSnackbar(msg ?: if (ok) "Claimed" else "Failed") }
         }
-        val sdf = when (task.cadence) {
-            Cadence.Daily -> SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-            Cadence.Weekly -> SimpleDateFormat("yyyy-'W'ww", Locale.getDefault())
-        }
-        val periodKey = sdf.format(Date())
-        val docId = "${task.id}_$periodKey" // Prevent duplicate claim in the period.
-
-        val data = mapOf(
-            "taskId" to task.id,
-            "taskTitle" to task.title,
-            "points" to task.points,
-            "timestamp" to FieldValue.serverTimestamp(),
-            "periodKey" to periodKey
-        )
-        db.collection("users").document(u).collection("rewards").document(docId)
-            .get()
-            .addOnSuccessListener { snap ->
-                if (snap.exists()) {
-                    scope.launch {
-                        snackbar.showSnackbar("Already claimed for this ${task.cadence.name.lowercase()}")
-                    }
-                } else {
-                    db.collection("users").document(u).collection("rewards").document(docId)
-                        .set(data)
-                        .addOnSuccessListener {
-                            scope.launch { snackbar.showSnackbar("You earned +${task.points} EcoPoints!") }
-                        }
-                        .addOnFailureListener { e ->
-                            scope.launch { snackbar.showSnackbar(e.localizedMessage ?: "Failed to claim") }
-                        }
-                }
-            }
-            .addOnFailureListener { e ->
-                scope.launch { snackbar.showSnackbar(e.localizedMessage ?: "Failed to claim") }
-            }
     }
 
-    // UI
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        // EcoPoints tracker (header)
+        // Header
         item {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(16.dp)) {
@@ -357,21 +217,34 @@ private fun RewardsScreenFirestore(
             }
         }
 
-        // Earn more points (actions)
+        // Earn More Points
         item {
             SectionCard(
                 title = "Earn More Points",
-                trailing = { }
+                trailing = {
+                    AssistChip(
+                        onClick = {
+                            repo.seedNow { ok, msg ->
+                                scope.launch { snackbar.showSnackbar(msg ?: if (ok) "Seeded." else "Failed.") }
+                            }
+                        },
+                        label = { Text("Get today’s tasks") }
+                    )
+                }
             ) {
-                ACTIONS.forEach { action ->
-                    val alreadyClaimed = when (action.cadence) {
-                        Cadence.Daily -> todayClaimed.contains(action.id)
-                        Cadence.Weekly -> weekClaimed.contains(action.id)
-                    }
+                if (tasks.isEmpty() && !isLoading) {
+                    Text(
+                        "No tasks yet. Try again later.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+                tasks.forEach { t ->
+                    val already = t.claimed
                     ListRow(
-                        headline = action.title,
-                        supporting = "${action.description} • +${action.points}",
-                        trailing = if (alreadyClaimed) "Claimed" else null,
+                        headline = t.title,
+                        supporting = "${t.description} • +${t.points}",
+                        trailing = if (already) "Claimed" else null,
                         leading = {
                             Surface(
                                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -391,22 +264,19 @@ private fun RewardsScreenFirestore(
                         horizontalArrangement = Arrangement.End
                     ) {
                         Button(
-                            enabled = !alreadyClaimed && !isLoading,
-                            onClick = { claim(action) },
+                            enabled = !already && !isLoading,
+                            onClick = { claim(t) },
                             shape = RoundedCornerShape(12.dp)
-                        ) { Text(if (alreadyClaimed) "Claimed" else "Claim") }
+                        ) { Text(if (already) "Claimed" else "Claim") }
                     }
                     HorizontalDivider()
                 }
             }
         }
 
-        // Monthly Progress (kept)
+        // Monthly Progress
         item {
-            SectionCard(
-                title = "Monthly Progress",
-                trailing = {}
-            ) {
+            SectionCard(title = "Monthly Progress", trailing = {}) {
                 InfoRow(
                     "Points This Month",
                     String.format(Locale.getDefault(), "%,d pts", pointsThisMonth)
@@ -441,7 +311,7 @@ private fun RewardsScreenFirestore(
     }
     error?.let {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            AssistChip(onClick = { /* no-op */ }, label = { Text(it) })
+            AssistChip(onClick = { }, label = { Text(it) })
         }
     }
 }
