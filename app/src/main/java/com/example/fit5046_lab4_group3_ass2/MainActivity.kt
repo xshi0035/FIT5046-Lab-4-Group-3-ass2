@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
     private val ecoTrackScreenViewModel: EcoTrackScreenViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        loadHeartRateData(
+        loadCsvData(
             context = this,
             fileName = "household_power_consumption.csv"
         )

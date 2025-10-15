@@ -1,7 +1,6 @@
 package com.example.fit5046_lab4_group3_ass2
 
 import android.content.Context
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +31,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -43,13 +44,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,7 +61,6 @@ import com.example.fit5046_lab4_group3_ass2.ui.screens.EcoBottomBar
 import com.example.fit5046_lab4_group3_ass2.ui.screens.ROUTE_ECOTRACK
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
-import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -178,15 +179,14 @@ fun EcoTrackScreen(
     kpiVsYesterdayText: String = "-12%",
     kpiCostTodayText: String = "$2.46"
 ) {
-    val data by viewModel.sensorData.collectAsState()
-
     val severity = when {
         rrpAudPerMwh > 200f -> PriceSeverity.Severe
         rrpAudPerMwh > 100f -> PriceSeverity.High
         else -> PriceSeverity.Normal
     }
 
-    val coroutineScope = rememberCoroutineScope()
+    var selectedMode by remember { mutableStateOf(1) }
+    val modes = listOf(1, 7, 30)
 
     LazyColumn(
         modifier = Modifier
@@ -195,15 +195,30 @@ fun EcoTrackScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp)
     ) {
-        /*item {Button(onClick = {
-            coroutineScope.launch { try {
-            viewModel.storeARecord()
-        } catch (e: Exception) {
-            Log.e("ButtonClick", "Error storing record", e)
-        } } }) {
-            Text("Store record")
-        }}*/
-        item { PeriodChips(selectedIndex = selectedPeriodIndex) }
+        item {
+            Row(Modifier.fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                modes.forEach { mode ->
+                    FilterChip(
+                        modifier = Modifier.height(36.dp).weight(1f),
+                        selected = selectedMode == mode,
+                        onClick = { selectedMode = mode },
+                        label = {
+                            Text(
+                                text = "$mode days",
+                                color = Color.Black
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(MaterialTheme.colorScheme.surface.toArgb()),
+                            containerColor = Color(MaterialTheme.colorScheme.surfaceVariant.toArgb())
+                        )
+                    )
+                }
+            }
+        }
         item { PriceHeaderCard(rrpAudPerMwh, severity) }
 
         if (severity != PriceSeverity.Normal) {
@@ -211,7 +226,7 @@ fun EcoTrackScreen(
         }
 
         //item { ChartPlaceholderCard() }
-        item { LineChartScreen(viewModel) }
+        item { LineChartScreen(viewModel, selectedMode) }
 
         item {
             Row(
@@ -270,48 +285,6 @@ fun EcoTrackScreen(
 }
 
 /* ------------------------------ COMPONENTS ------------------------------ */
-
-@Composable
-private fun PeriodChips(selectedIndex: Int) {
-    val bg = MaterialTheme.colorScheme.surfaceVariant
-    val sel = MaterialTheme.colorScheme.surface
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(bg, RoundedCornerShape(12.dp))
-            .padding(4.dp)
-    ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            SegChip("Daily", selectedIndex == 0, Modifier.weight(1f), sel, bg)
-            SegChip("Weekly", selectedIndex == 1, Modifier.weight(1f), sel, bg)
-            SegChip("Monthly", selectedIndex == 2, Modifier.weight(1f), sel, bg)
-        }
-    }
-}
-
-@Composable
-private fun SegChip(
-    label: String,
-    isSelected: Boolean,
-    modifier: Modifier,
-    selectedColor: Color,
-    unselectedColor: Color
-) {
-    Surface(
-        color = if (isSelected) selectedColor else unselectedColor,
-        shape = RoundedCornerShape(10.dp),
-        modifier = modifier.height(36.dp)
-    ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(label, fontWeight = FontWeight.Medium)
-        }
-    }
-}
-
 /** compact “today’s price” card */
 @Composable
 private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
@@ -396,24 +369,6 @@ private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
 
 /** tiny helper to return 4 values */
 private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
-
-@Composable
-private fun ChartPlaceholderCard() {
-    Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.line_chart_image),
-                contentDescription = "Daily usage chart",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop // change to Fit if you prefer no cropping
-            )
-        }
-    }
-}
 
 @Composable
 private fun KpiCard(value: String, label: String, modifier: Modifier = Modifier) {
@@ -587,7 +542,7 @@ object CsvRecordsObject {
     }
 }
 
-fun loadHeartRateData(context: Context, fileName: String) {
+fun loadCsvData(context: Context, fileName: String) {
     val records = mutableListOf<CsvPowerRecord>()
     try {
         val inputStream = context.assets.open(fileName)
