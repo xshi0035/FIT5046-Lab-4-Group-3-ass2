@@ -53,7 +53,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -257,30 +256,6 @@ fun EcoTrackScreen(
                 avgValue = avgKwh
             )
         }
-
-        // Section header style aligned with Achievements (titleMedium)
-        item { Text("Environmental Impact", style = MaterialTheme.typography.titleMedium) }
-
-        item {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                SmallImpactCard(
-                    title = "4.4 kWh",
-                    subtitle = "Energy Saved\nvs Last Week",
-                    modifier = Modifier.weight(1f)
-                )
-                SmallImpactCard(
-                    title = "2.1 kg",
-                    subtitle = "CO₂ Reduced\nThis Week",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        item { ImpactLine(label = "Equivalent Impact", valueRight = "= Planting 2 trees") }
-        item { ImpactLine(label = "Carbon Offset", valueRight = "= 8.5 km less driving") }
     }
 }
 
@@ -302,13 +277,22 @@ private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
         )
     }
 
+    var price_text = ""
+
+    if (rrpAudPerMwh == 0f) {
+        price_text = "Price currently unavailable"
+    }
+    else {
+        price_text = "${rrpAudPerMwh.toInt()} AUD/MWh"
+    }
+
     Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text("Latest Price", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "${rrpAudPerMwh.toInt()} AUD/MWh",
+                    text = price_text,
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
                     modifier = Modifier.weight(1f)
                 )
@@ -438,48 +422,6 @@ private fun UsageVsAverageCard(
                     fontSize = 12.sp
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun SmallImpactCard(title: String, subtitle: String, modifier: Modifier = Modifier) {
-    Card(shape = RoundedCornerShape(14.dp), modifier = modifier) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                subtitle,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun ImpactLine(label: String, valueRight: String) {
-    Card(shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text(label, fontWeight = FontWeight.Medium)
-                Text(
-                    "Environmental benefit",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Text(valueRight, fontWeight = FontWeight.Medium)
         }
     }
 }

@@ -32,7 +32,7 @@ class EcoTrackScreenViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             try {
                 retrofitResponse.value = apiRepository.customSearch()
-                Log.i("Error", "NO ERROR???")
+                Log.i("Error", "NO ERROR")
             } catch (e: Exception) {
                 Log.i("Error", "Response failed", e)
             }
