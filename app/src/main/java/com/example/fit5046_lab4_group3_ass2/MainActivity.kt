@@ -140,14 +140,15 @@ private fun AppNav() {
             ElectricityScaffold(
                 currentRoute = ROUTE_APPLIANCES,
                 onTabSelected = ::onTab,
-                onBack = ::goHome
+                onBack = ::goHome,
+                onAddAppliance = { nav.navigate("appliance_add") }
             )
         }
 
-        // (Optional) separate add form route; keep if you use it
+        // Add Appliance: back should return to the previous destination (Appliances)
         composable("appliance_add") {
             AddApplianceScaffold(
-                onBack = ::goHome,
+                onBack = { nav.popBackStack() },   // <-- changed from ::goHome
                 currentRoute = ROUTE_APPLIANCES,
                 onTabSelected = ::onTab
             )

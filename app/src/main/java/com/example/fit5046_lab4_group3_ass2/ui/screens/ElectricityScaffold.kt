@@ -67,7 +67,8 @@ fun ElectricityScaffold(
     // NAV
     currentRoute: String = ROUTE_APPLIANCES,
     onTabSelected: (route: String) -> Unit = {},
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onAddAppliance: () -> Unit = {}   // <-- NEW: navigate to AddAppliance page
 ) {
     Scaffold(
         topBar = {
@@ -102,7 +103,7 @@ fun ElectricityScaffold(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { /* no-op */ }) {
+            FloatingActionButton(onClick = onAddAppliance) {   // <-- CHANGED
                 Icon(Icons.Filled.Add, contentDescription = "Add")
             }
         }
