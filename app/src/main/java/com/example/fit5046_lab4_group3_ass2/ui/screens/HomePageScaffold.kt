@@ -212,6 +212,8 @@ private fun Home(
     onViewTips: () -> Unit,
     onViewRewards: () -> Unit
 ) {
+
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
@@ -289,29 +291,9 @@ private fun Home(
                 SectionTitle("Recent Activity")
 
                 HomeScreenCard(
-                    title = "⚡ Usage goal met",
+                    title = "",
                     mainText = "",
-                    smallText = "Yesterday",
-                    rightText = "+100 pts"
-                )
-                HomeScreenCard(
-                    title = "🔌 New appliance added",
-                    mainText = "",
-                    smallText = "5 hours ago",
-                    rightText = "+25 pts"
-                )
-                HomeScreenCard(
-                    title = "ℹ️ Price tip viewed",
-                    mainText = "",
-                    smallText = "2 hours ago",
-                    rightText = "+10 pts"
-                )
-
-                SectionTitle("Information")
-                HomeScreenCard(
-                    title = "\uD83D\uDCA1 Today's Eco Tip",
-                    mainText = "",
-                    smallText = "Unplug devices when not in use",
+                    smallText = "",
                     rightText = ""
                 )
             }

@@ -168,6 +168,7 @@ fun EcoTrackScaffold(
 /* -------------------------------- SCREEN -------------------------------- */
 
 private enum class PriceSeverity { Normal, High, Severe }
+private enum class UsageSeverity { Low, Normal, High }
 
 /** Parameterized so previews (and Scaffold) can pass values. */
 @Composable
@@ -181,6 +182,21 @@ fun EcoTrackScreen(
     kpiVsYesterdayText: String = "-12%",
     kpiCostTodayText: String = "$2.46"
 ) {
+    val dayUseList by viewModel.allDayUses.collectAsState(emptyList())
+    var latest_use : Float
+    if (!dayUseList.isEmpty()) {
+        latest_use = dayUseList.last().use
+    } else {
+        latest_use = 2.5f //so that the notification doesn't show
+    }
+    //latest_use = 1f //testing
+
+    val currentUse = when {
+        latest_use < 2f -> UsageSeverity.Low
+        latest_use > 3f -> UsageSeverity.High
+        else -> UsageSeverity.Normal
+    }
+    //val rrpAudPerMwh = 300f// testing
     val severity = when {
         rrpAudPerMwh > 200f -> PriceSeverity.Severe
         rrpAudPerMwh > 100f -> PriceSeverity.High
@@ -231,6 +247,10 @@ fun EcoTrackScreen(
 
         if (severity != PriceSeverity.Normal) {
             item { PriceAlertBanner(rrpAudPerMwh, severity) }
+        }
+        // low or high usage banner
+        if (currentUse != UsageSeverity.Normal) {
+            item { UsageAlertBanner(latest_use, currentUse) }
         }
 
         //item { ChartPlaceholderCard() }
@@ -354,7 +374,44 @@ private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
                 Text(title, fontWeight = FontWeight.SemiBold)
                 Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            AssistChip(onClick = { /* UI only */ }, label = { Text("Details") })
+            //AssistChip(onClick = { /* UI only */ }, label = { Text("Details") })
+        }
+    }
+}
+
+@Composable
+private fun UsageAlertBanner(current_usage: Float, usageSeverity: UsageSeverity) {
+    val (containerColor, title, message, icon) = when (usageSeverity) {
+        UsageSeverity.Low -> Quad(
+            MaterialTheme.colorScheme.tertiaryContainer,
+            "Low energy use! ${current_usage} kW",
+            "Good job!",
+            Icons.Filled.Star
+        )
+
+        UsageSeverity.High -> Quad(
+            MaterialTheme.colorScheme.errorContainer,
+            "High energy use",
+            "${current_usage} kW",
+            Icons.Filled.Warning
+        )
+
+        UsageSeverity.Normal -> return
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            //AssistChip(onClick = { /* UI only */ }, label = { Text("Details") })
         }
     }
 }
