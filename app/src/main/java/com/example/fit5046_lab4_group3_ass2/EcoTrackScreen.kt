@@ -417,7 +417,7 @@ private fun UsageAlertBanner(current_usage: Float, usageSeverity: UsageSeverity)
 }
 
 /** tiny helper to return 4 values */
-private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 @Composable
 private fun KpiCard(value: String, label: String, modifier: Modifier = Modifier) {
