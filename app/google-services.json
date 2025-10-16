@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "872040888947",
+    "project_id": "fit5046-a4-lab04-group03",
+    "storage_bucket": "fit5046-a4-lab04-group03.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:872040888947:android:45018ff45a1e072c67c806",
+        "android_client_info": {
+          "package_name": "com.example.fit5046_lab4_group3_ass2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9BTGet3liv0FDh3hgH0W0OEA102O3kj8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
