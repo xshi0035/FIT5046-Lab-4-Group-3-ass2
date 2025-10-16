@@ -1,6 +1,7 @@
 package com.example.fit5046_lab4_group3_ass2
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.fit5046_lab4_group3_ass2.room.DayUse
 import com.example.fit5046_lab4_group3_ass2.ui.screens.EcoBottomBar
 import com.example.fit5046_lab4_group3_ass2.ui.screens.ROUTE_ECOTRACK
 import com.github.mikephil.charting.charts.LineChart
@@ -185,8 +187,9 @@ fun EcoTrackScreen(
         else -> PriceSeverity.Normal
     }
 
-    var selectedMode by remember { mutableStateOf(1) }
-    val modes = listOf(1, 7, 30)
+    var selectedMode by remember { mutableStateOf(1f) }
+    val modes = listOf(0.25f, 1f, 7f, 30f)
+    val mode_names = mapOf(0.25f to "6 hours", 1f to "1 day", 7f to "Week", 30f to "Month")
 
     LazyColumn(
         modifier = Modifier
@@ -196,18 +199,23 @@ fun EcoTrackScreen(
         contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp)
     ) {
         item {
-            Row(Modifier.fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
-                .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 modes.forEach { mode ->
                     FilterChip(
-                        modifier = Modifier.height(36.dp).weight(1f),
+                        modifier = Modifier
+                            .height(36.dp)
+                            .weight(1f),
                         selected = selectedMode == mode,
                         onClick = { selectedMode = mode },
                         label = {
                             Text(
-                                text = "$mode days",
+                                text = "${mode_names[mode]}",
                                 color = Color.Black
                             )
                         },
@@ -282,8 +290,7 @@ private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
 
     if (rrpAudPerMwh == 0f) {
         price_text = "Price currently unavailable"
-    }
-    else {
+    } else {
         price_text = "${rrpAudPerMwh.toInt()} AUD/MWh"
     }
 
@@ -428,10 +435,10 @@ private fun UsageVsAverageCard(
 }
 
 @Composable
-fun LineChartScreen(viewModel: EcoTrackScreenViewModel, days_to_show: Int = 1) {
+fun LineChartScreen(viewModel: EcoTrackScreenViewModel, days_to_show: Float = 1f) {
     val dayUseList by viewModel.allDayUses.collectAsState(emptyList())
 
-    val dayUseList_to_show = dayUseList.takeLast(days_to_show * 4 * 24)
+    val dayUseList_to_show = dayUseList.takeLast((days_to_show * 4 * 24).toInt())
 
     if (dayUseList_to_show.isNotEmpty()) {
         val entries = dayUseList_to_show.mapIndexed { index, dayUse ->
@@ -450,9 +457,10 @@ fun LineChartScreen(viewModel: EcoTrackScreenViewModel, days_to_show: Int = 1) {
         // Update chart data when entries change
         LaunchedEffect(entries) {
             chartRef.value?.let { chart ->
-                val dataSet = LineDataSet(entries, "Energy use (values recorded every 15 minutes)").apply {
-                    colors = ColorTemplate.COLORFUL_COLORS.toList()
-                }
+                val dataSet =
+                    LineDataSet(entries, "Energy use (values recorded every 15 minutes)").apply {
+                        colors = ColorTemplate.COLORFUL_COLORS.toList()
+                    }
                 val lineData = LineData(dataSet).apply {
                     setDrawValues(false)
                 }
