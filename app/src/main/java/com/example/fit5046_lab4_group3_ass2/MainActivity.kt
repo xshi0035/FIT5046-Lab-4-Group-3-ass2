@@ -188,9 +188,13 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                 currentRoute = ROUTE_ECOTRACK,
                 onTabSelected = ::onTab,
                 onBack = ::goHome,
-                viewModel = ecoTrackScreenViewModel
+                viewModel = ecoTrackScreenViewModel,
+                onGoToElectricity = { onTab(ROUTE_APPLIANCES) }
+                // not to use onTab’s popUpTo behavior,  can do:
+                // onGoToElectricity = { nav.navigate(ROUTE_APPLIANCES) }
             )
         }
+
 
         composable(ROUTE_REWARDS) {
             AchievementsScaffold(
