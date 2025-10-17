@@ -34,9 +34,14 @@ class StorageWorker(appContext: Context, workerParams: WorkerParameters) :
 
         var high_use = false
         var high_price = false
+        var low_use = true //false
 
         if (info_for_notification[0] > 3) {
             high_use = true
+        }
+
+        if (info_for_notification[0] < 2) {
+            low_use = true
         }
 
         if (info_for_notification[1] > 100) {
@@ -49,6 +54,10 @@ class StorageWorker(appContext: Context, workerParams: WorkerParameters) :
             notification_message += "High energy use: "
             notification_message += info_for_notification[0].toString()
             notification_message += " kW\n"
+        } else if(low_use) {
+            notification_message += "Low energy use: "
+            notification_message += info_for_notification[0].toString()
+            notification_message += " kW. Good job!\n"
         }
         if (high_price) {
             notification_message += "High electricity price: "
