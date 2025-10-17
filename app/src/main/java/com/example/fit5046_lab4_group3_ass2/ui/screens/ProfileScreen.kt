@@ -181,7 +181,6 @@ fun ProfileRoute(
         onNotifications = onNotifications,
         onEditProfile = onEditProfile,
         onToggleElectricity = ::updateElectricityReminders,
-        ecoPoints = 0,
         // NAV
         currentRoute = ROUTE_PROFILE,
         onTabSelected = onTabSelected,
@@ -221,9 +220,6 @@ fun ProfileScreen(
     onTapContact: () -> Unit = {},
     onTapAbout: () -> Unit = {},
     onTapSdg: () -> Unit = {},
-
-    // Stats
-    ecoPoints: Int,
 
     // NAV
     currentRoute: String = ROUTE_PROFILE,
@@ -279,7 +275,6 @@ fun ProfileScreen(
             onTapContact = onTapContact,
             onTapAbout = onTapAbout,
             onTapSdg = onTapSdg,
-            ecoPoints = ecoPoints,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
@@ -308,7 +303,6 @@ private fun ProfileContent(
     onTapContact: () -> Unit,
     onTapAbout: () -> Unit,
     onTapSdg: () -> Unit,
-    ecoPoints: Int,
     modifier: Modifier = Modifier
 ) {
     val isEmptyProfile = name.isBlank() && email.isBlank()
@@ -406,33 +400,6 @@ private fun ProfileContent(
 
         item { Divider() }
         item { SettingChevronRow(title = "Learn about UN SDG Goals", onClick = onTapSdg) }
-
-        // Impact Summary
-        item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Column(
-                    Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Your Impact Summary", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "%,d".format(ecoPoints),
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                    Text(
-                        "EcoPoints Earned",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 
@@ -532,8 +499,7 @@ fun Preview_Profile_Filled() {
             focus = "Electricity",
             electricityReminders = electricity,
             themeLabel = "Light",
-            onToggleElectricity = { electricity = it },
-            ecoPoints = 2847
+            onToggleElectricity = { electricity = it }
         )
     }
 }
@@ -553,8 +519,7 @@ fun Preview_Profile_Empty() {
             focus = "Electricity",
             electricityReminders = electricity,
             themeLabel = "System",
-            onToggleElectricity = { electricity = it },
-            ecoPoints = 0
+            onToggleElectricity = { electricity = it }
         )
     }
 }

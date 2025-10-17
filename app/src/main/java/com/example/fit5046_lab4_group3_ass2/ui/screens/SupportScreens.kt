@@ -4,32 +4,92 @@ package com.example.fit5046_lab4_group3_ass2.ui.screens
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
+import android.os.Build
+import android.content.pm.PackageManager
 
-/* ========= Routes (供 MainActivity 注册，非底部 Tab) ========= */
+
 const val ROUTE_CONTACT_SUPPORT = "contact_support"
 const val ROUTE_ABOUT_APP = "about_app"
 const val ROUTE_SDG_LEARN = "sdg_learn"
 
 /* ========= ContactSupportScreen ========= */
+data class SupportContact(
+    val name: String,
+    val role: String,
+    val phone: String,
+    val email: String,
+    val hours: String
+)
+
 @Composable
 fun ContactSupportScreen(
     onBack: () -> Unit = {}
 ) {
     val ctx = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+
+    val contacts = remember {
+        listOf(
+            SupportContact(
+                name = "Alex Chen",
+                role = "Technical Support",
+                phone = "+61 3 8000 1234",
+                email = "alex.chen@example.com",
+                hours = "Mon–Fri 9:00–18:00 (AEST)"
+            ),
+            SupportContact(
+                name = "Priya Sharma",
+                role = "Account & Billing",
+                phone = "+61 3 8000 5678",
+                email = "priya.sharma@example.com",
+                hours = "Mon–Fri 10:00–17:00 (AEST)"
+            ),
+            SupportContact(
+                name = "Support Desk",
+                role = "General Enquiries",
+                phone = "+61 3 8000 0000",
+                email = "support@example.com",
+                hours = "7 days 9:00–21:00"
+            )
+        )
+    }
+
+    fun dial(number: String) {
+        val i = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${number.replace(" ", "")}"))
+        try { ctx.startActivity(i) } catch (_: ActivityNotFoundException) {}
+    }
+
+    fun email(to: String, subject: String = "App Support") {
+        val i = Intent(Intent.ACTION_SENDTO).apply {
+            data = Uri.parse("mailto:$to")
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+        }
+        try { ctx.startActivity(i) } catch (_: ActivityNotFoundException) {}
+    }
+
+    fun copy(text: String) {
+        clipboard.setText(AnnotatedString(text))
+    }
 
     Scaffold(
         topBar = {
@@ -43,63 +103,98 @@ fun ContactSupportScreen(
             )
         }
     ) { inner ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
-                .padding(20.dp),
+                .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                "How can we help?",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-            )
+            item {
+                Text(
+                    "How can we help?",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Text(
+                    "Choose a contact below or use the quick actions.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
 
-            Button(
-                onClick = {
-                    // Email support
-                    val email = "support@example.com"
-                    val subject = "App Support"
-                    val intent = Intent(Intent.ACTION_SENDTO).apply {
-                        data = Uri.parse("mailto:$email")
-                        putExtra(Intent.EXTRA_SUBJECT, subject)
+            items(contacts) { c ->
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // 标题
+                        Column {
+                            Text(c.name, style = MaterialTheme.typography.titleMedium)
+                            Text("${c.role} • ${c.hours}", style = MaterialTheme.typography.bodySmall)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("Phone: ${c.phone}", modifier = Modifier.weight(1f))
+                            IconButton(onClick = { dial(c.phone) }) {
+                                Icon(Icons.Filled.Phone, contentDescription = "Call")
+                            }
+                            IconButton(onClick = { copy(c.phone) }) {
+                                Icon(Icons.Filled.ContentCopy, contentDescription = "Copy phone")
+                            }
+                        }
+
+                        // 邮件行：发邮件 / 复制
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("Email: ${c.email}", modifier = Modifier.weight(1f))
+                            IconButton(onClick = { email(c.email) }) {
+                                Icon(Icons.Filled.Email, contentDescription = "Email")
+                            }
+                            IconButton(onClick = { copy(c.email) }) {
+                                Icon(Icons.Filled.ContentCopy, contentDescription = "Copy email")
+                            }
+                        }
+
+                        // 快捷按钮（可选）
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { email(c.email, subject = "Support – ${c.role}") },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Email ${c.name.split(" ").first()}") }
+
+                            OutlinedButton(
+                                onClick = { dial(c.phone) },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Call") }
+                        }
                     }
-                    try { ctx.startActivity(intent) } catch (_: ActivityNotFoundException) {}
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Email us") }
-
-            OutlinedButton(
-                onClick = {
-                    // Open FAQ (替换为你们自己的链接)
-                    val url = "https://example.com/faq"
-                    val i = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                    try { ctx.startActivity(i) } catch (_: ActivityNotFoundException) {}
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Open FAQs") }
-
-            OutlinedButton(
-                onClick = {
-                    // 可选：GitHub issues
-                    val url = "https://github.com/xshi0035/FIT5046-Lab-4-Group-3-ass2/issues"
-                    val i = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                    try { ctx.startActivity(i) } catch (_: ActivityNotFoundException) {}
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Report an Issue") }
+                }
+            }
         }
     }
 }
 
-/* ========= AboutAppScreen（不依赖 BuildConfig） ========= */
 @Composable
 fun AboutAppScreen(
     onBack: () -> Unit = {}
 ) {
     val ctx = LocalContext.current
 
-    // 读取版本信息（兼容 API 33+ 与旧版）
     val pkgName = ctx.packageName
     val pm = ctx.packageManager
     val (versionName, versionCode) = try {
