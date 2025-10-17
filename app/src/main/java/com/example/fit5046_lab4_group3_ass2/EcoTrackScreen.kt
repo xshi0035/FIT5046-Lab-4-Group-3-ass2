@@ -3,51 +3,14 @@ package com.example.fit5046_lab4_group3_ass2
 import android.content.Context
 import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,7 +20,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.fit5046_lab4_group3_ass2.room.DayUse
 import com.example.fit5046_lab4_group3_ass2.ui.screens.EcoBottomBar
 import com.example.fit5046_lab4_group3_ass2.ui.screens.ROUTE_ECOTRACK
 import com.github.mikephil.charting.charts.LineChart
@@ -66,10 +28,13 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.utils.ColorTemplate
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.Locale
 import kotlin.math.max
-
 
 /* ------------------------------- SCAFFOLD ------------------------------- */
 
@@ -77,7 +42,6 @@ import kotlin.math.max
 @Composable
 fun EcoTrackScaffold(
     viewModel: EcoTrackScreenViewModel,
-    // Forward these so previews can tweak values but still show full chrome
     todayKwh: Float = 8.2f,
     avgKwh: Float = 12.6f,
     rrpAudPerMwh: Float = 132f,
@@ -86,31 +50,16 @@ fun EcoTrackScaffold(
     kpiVsYesterdayText: String = "-12%",
     kpiCostTodayText: String = "$2.46",
     onBack: () -> Unit = {},
-    // Which tab should appear selected in the bar
     currentRoute: String = ROUTE_ECOTRACK,
-
-    // Bottom bar navigation
     onTabSelected: (route: String) -> Unit = {},
+    onGoToElectricity: () -> Unit = {}
 ) {
-    val navItems: List<Pair<String, ImageVector>> = listOf(
-        "Home" to Icons.Filled.Home,
-        "Appliances" to Icons.Filled.Add,
-        "EcoTrack" to Icons.Filled.Info,
-        "Rewards" to Icons.Filled.Star,   // <- plural for consistency
-        "Profile" to Icons.Filled.AccountCircle
-    )
-
-    //For getting latest prices from API
-    LaunchedEffect(Unit) {
-        viewModel.customSearch()
-    }
+    LaunchedEffect(Unit) { viewModel.customSearch() }
     val itemsReturned by viewModel.retrofitResponse
     val price = if (itemsReturned.data.isNotEmpty()) {
         itemsReturned.data[0].results[0].data
             .last { it.size > 1 && it[1] is Number }[1].toString().toFloat()
-    } else {
-        0f
-    }
+    } else 0f
 
     viewModel.storeARecord()
 
@@ -124,7 +73,6 @@ fun EcoTrackScaffold(
                     }
                 },
                 actions = {
-                    // Use the same bell-with-dot pattern as Rewards screen
                     Box {
                         IconButton(onClick = { /* UI only */ }) {
                             Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
@@ -140,10 +88,7 @@ fun EcoTrackScaffold(
             )
         },
         bottomBar = {
-            EcoBottomBar(
-                currentRoute = currentRoute,
-                onTabSelected = onTabSelected
-            )
+            EcoBottomBar(currentRoute = currentRoute, onTabSelected = onTabSelected)
         }
     ) { inner ->
         Surface(
@@ -159,7 +104,8 @@ fun EcoTrackScaffold(
                 selectedPeriodIndex = selectedPeriodIndex,
                 kpiTodayText = kpiTodayText,
                 kpiVsYesterdayText = kpiVsYesterdayText,
-                kpiCostTodayText = kpiCostTodayText
+                kpiCostTodayText = kpiCostTodayText,
+                onGoToElectricity = onGoToElectricity
             )
         }
     }
@@ -169,7 +115,6 @@ fun EcoTrackScaffold(
 
 private enum class PriceSeverity { Normal, High, Severe }
 
-/** Parameterized so previews (and Scaffold) can pass values. */
 @Composable
 fun EcoTrackScreen(
     viewModel: EcoTrackScreenViewModel,
@@ -179,7 +124,8 @@ fun EcoTrackScreen(
     selectedPeriodIndex: Int = 0,
     kpiTodayText: String = "8.2",
     kpiVsYesterdayText: String = "-12%",
-    kpiCostTodayText: String = "$2.46"
+    kpiCostTodayText: String = "$2.46",
+    onGoToElectricity: () -> Unit = {}
 ) {
     val severity = when {
         rrpAudPerMwh > 200f -> PriceSeverity.Severe
@@ -189,7 +135,103 @@ fun EcoTrackScreen(
 
     var selectedMode by remember { mutableStateOf(1f) }
     val modes = listOf(0.25f, 1f, 7f, 30f)
-    val mode_names = mapOf(0.25f to "6 hours", 1f to "1 day", 7f to "Week", 30f to "Month")
+    val modeNames = mapOf(0.25f to "6 hours", 1f to "1 day", 7f to "Week", 30f to "Month")
+
+    var latestKw by remember { mutableStateOf(0f) }
+    var showOveruse by remember { mutableStateOf(false) }
+    LaunchedEffect(latestKw) { showOveruse = latestKw > 3.0f }
+
+    // ---------- KPIs from Firestore + baseline compare ----------
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+    val uid = auth.currentUser?.uid
+
+    var kpiToday by remember { mutableStateOf(kpiTodayText) }
+    var kpiCost by remember { mutableStateOf(kpiCostTodayText) }
+    var kpiVsLast by remember { mutableStateOf("—") }
+
+    var currentEstimateKwh by remember { mutableStateOf(0.0) }
+    var baselineKwh by remember { mutableStateOf<Double?>(null) }
+    var backfilled by remember { mutableStateOf(false) }
+
+    // 1) Read appliances and compute current estimate
+    LaunchedEffect(uid) {
+        if (uid == null) return@LaunchedEffect
+        db.collection("users").document(uid).collection("appliances")
+            .get()
+            .addOnSuccessListener { docs ->
+                var sumKwh = 0.0
+                docs.forEach { d ->
+                    val watt = (d.getLong("watt") ?: 0L).toInt()
+                    val hours = (d.getDouble("hours") ?: 0.0).toFloat()
+                    val kwh = max(0f, watt * hours / 1000f)
+                    sumKwh += kwh
+                }
+                currentEstimateKwh = sumKwh
+                val cost = sumKwh * 0.30
+                kpiToday = String.format(Locale.getDefault(), "%.2f", sumKwh)
+                kpiCost = String.format(Locale.getDefault(), "$%.2f", cost)
+                Log.d("EcoTrack", "Current estimate (kWh) = $sumKwh")
+            }
+            .addOnFailureListener { e -> Log.w("EcoTrack", "Failed to read appliances", e) }
+    }
+
+    // 2) Live-listen to baseline doc so UI updates as soon as it exists/changes
+    DisposableEffect(uid) {
+        var reg: ListenerRegistration? = null
+        if (uid != null) {
+            reg = db.collection("users").document(uid)
+                .collection("metrics").document("lastEstimate")
+                .addSnapshotListener { doc, err ->
+                    if (err != null) {
+                        Log.w("EcoTrack", "Baseline listen failed", err)
+                        return@addSnapshotListener
+                    }
+                    baselineKwh = doc?.getDouble("kwh")
+                    Log.d("EcoTrack", "Baseline updated to ${baselineKwh}")
+                }
+        }
+        onDispose { reg?.remove() }
+    }
+
+    // 3) Compute % vs baseline whenever either side changes
+    LaunchedEffect(currentEstimateKwh, baselineKwh) {
+        baselineKwh?.let { base ->
+            if (base > 0.0) {
+                val pct = ((currentEstimateKwh - base) / base) * 100.0
+                val sign = if (pct >= 0) "+" else ""
+                kpiVsLast = String.format(Locale.getDefault(), "%s%.0f%%", sign, pct)
+            } else {
+                kpiVsLast = "—"
+            }
+        } ?: run { kpiVsLast = "—" }
+    }
+
+    // 4) Auto-backfill baseline ONCE after we have current estimate
+    LaunchedEffect(currentEstimateKwh, baselineKwh, uid) {
+        val id = uid ?: return@LaunchedEffect
+        if (!backfilled && baselineKwh == null && currentEstimateKwh > 0.0) {
+            backfilled = true
+            val payload = mapOf("kwh" to currentEstimateKwh, "ts" to System.currentTimeMillis())
+            db.collection("users").document(id)
+                .collection("metrics").document("lastEstimate")
+                .set(payload)
+                .addOnSuccessListener { Log.d("EcoTrack", "Baseline backfilled with $currentEstimateKwh") }
+                .addOnFailureListener { e -> Log.w("EcoTrack", "Backfill failed", e) }
+        }
+    }
+
+    // Save baseline right before navigating (spike dialog confirm)
+    fun saveBaselineAndNavigate() {
+        val id = uid ?: return onGoToElectricity()
+        val payload = mapOf("kwh" to currentEstimateKwh, "ts" to System.currentTimeMillis())
+        db.collection("users").document(id)
+            .collection("metrics").document("lastEstimate")
+            .set(payload)
+            .addOnSuccessListener { Log.d("EcoTrack", "Baseline saved before navigate") }
+            .addOnCompleteListener { onGoToElectricity() }
+    }
+    // -------------------------------------------------------------------------
 
     LazyColumn(
         modifier = Modifier
@@ -213,12 +255,7 @@ fun EcoTrackScreen(
                             .weight(1f),
                         selected = selectedMode == mode,
                         onClick = { selectedMode = mode },
-                        label = {
-                            Text(
-                                text = "${mode_names[mode]}",
-                                color = Color.Black
-                            )
-                        },
+                        label = { Text("${modeNames[mode]}", color = Color.Black) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(MaterialTheme.colorScheme.surface.toArgb()),
                             containerColor = Color(MaterialTheme.colorScheme.surfaceVariant.toArgb())
@@ -227,31 +264,45 @@ fun EcoTrackScreen(
                 }
             }
         }
+
         item { PriceHeaderCard(rrpAudPerMwh, severity) }
-
-        if (severity != PriceSeverity.Normal) {
-            item { PriceAlertBanner(rrpAudPerMwh, severity) }
-        }
-
-        //item { ChartPlaceholderCard() }
-        item { LineChartScreen(viewModel, selectedMode) }
+        if (severity != PriceSeverity.Normal) item { PriceAlertBanner(rrpAudPerMwh, severity) }
 
         item {
+            LineChartScreen(
+                viewModel = viewModel,
+                days_to_show = selectedMode,
+                onLatestValue = { latestKw = it }
+            )
+        }
+
+        // Spike dialog – save baseline before we jump to Appliances
+        item {
+            OverusePrompt(
+                visible = showOveruse,
+                currentKw = latestKw,
+                onDismiss = { showOveruse = false },
+                onBeforeNavigate = { saveBaselineAndNavigate() },
+                onGoToElectricity = { /* handled above */ }
+            )
+        }
+
+        // KPIs (explicit “Estimated” label)
+        item {
+            Text(
+                "Estimated (from appliances)",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+            Spacer(Modifier.height(6.dp))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                KpiCard(value = kpiTodayText, label = "Today (kWh)", modifier = Modifier.weight(1f))
-                KpiCard(
-                    value = kpiVsYesterdayText,
-                    label = "vs Yesterday",
-                    modifier = Modifier.weight(1f)
-                )
-                KpiCard(
-                    value = kpiCostTodayText,
-                    label = "Cost Today",
-                    modifier = Modifier.weight(1f)
-                )
+                KpiCard(value = kpiToday, label = "Today (kWh)", modifier = Modifier.weight(1f))
+                KpiCard(value = kpiVsLast, label = "vs Last estimate", modifier = Modifier.weight(1f))
+                KpiCard(value = kpiCost, label = "Cost Today", modifier = Modifier.weight(1f))
             }
         }
 
@@ -269,30 +320,15 @@ fun EcoTrackScreen(
 }
 
 /* ------------------------------ COMPONENTS ------------------------------ */
-/** compact “today’s price” card */
+
 @Composable
 private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
     val (badgeColor, badgeText, badgeIcon) = when (severity) {
-        PriceSeverity.Severe -> Triple(
-            MaterialTheme.colorScheme.errorContainer, "Severe", Icons.Filled.Warning
-        )
-
-        PriceSeverity.High -> Triple(
-            MaterialTheme.colorScheme.tertiaryContainer, "High", Icons.Filled.Info
-        )
-
-        PriceSeverity.Normal -> Triple(
-            MaterialTheme.colorScheme.surfaceVariant, "Normal", Icons.Filled.Info
-        )
+        PriceSeverity.Severe -> Triple(MaterialTheme.colorScheme.errorContainer, "Severe", Icons.Filled.Warning)
+        PriceSeverity.High -> Triple(MaterialTheme.colorScheme.tertiaryContainer, "High", Icons.Filled.Info)
+        PriceSeverity.Normal -> Triple(MaterialTheme.colorScheme.surfaceVariant, "Normal", Icons.Filled.Info)
     }
-
-    var price_text = ""
-
-    if (rrpAudPerMwh == 0f) {
-        price_text = "Price currently unavailable"
-    } else {
-        price_text = "${rrpAudPerMwh.toInt()} AUD/MWh"
-    }
+    val priceText = if (rrpAudPerMwh == 0f) "Price currently unavailable" else "${rrpAudPerMwh.toInt()} AUD/MWh"
 
     Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
@@ -300,7 +336,7 @@ private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = price_text,
+                    text = priceText,
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
                     modifier = Modifier.weight(1f)
                 )
@@ -312,16 +348,13 @@ private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
                 )
             }
             Spacer(Modifier.height(4.dp))
-            Text(
-                "Alerts: High > 100 • Severe > 200",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text("Alerts: High > 100 • Severe > 200", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
-/** Optional banner — only when High/Severe */
+private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+
 @Composable
 private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
     val (containerColor, title, message, icon) = when (severity) {
@@ -331,14 +364,12 @@ private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
             "Prices are very high (> 200 AUD/MWh). Cutting back now can save a lot.",
             Icons.Filled.Warning
         )
-
         PriceSeverity.High -> Quad(
             MaterialTheme.colorScheme.tertiaryContainer,
             "High price alert",
             "Electricity prices are high (> 100 AUD/MWh). Consider reducing usage.",
             Icons.Filled.Info
         )
-
         PriceSeverity.Normal -> return
     }
 
@@ -358,9 +389,6 @@ private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
         }
     }
 }
-
-/** tiny helper to return 4 values */
-private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 @Composable
 private fun KpiCard(value: String, label: String, modifier: Modifier = Modifier) {
@@ -395,8 +423,7 @@ private fun UsageVsAverageCard(
             val base = max(yourValue, avgValue).coerceAtLeast(0.0001f)
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(yourLabel, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(yourText)
+                Text(yourLabel, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(yourText)
             }
             LinearProgressIndicator(
                 progress = { (yourValue / base).coerceIn(0f, 1f) },
@@ -404,12 +431,9 @@ private fun UsageVsAverageCard(
                     .fillMaxWidth()
                     .height(8.dp)
             )
-
             Spacer(Modifier.height(10.dp))
-
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(avgLabel, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(avgText)
+                Text(avgLabel, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(avgText)
             }
             LinearProgressIndicator(
                 progress = { (avgValue / base).coerceIn(0f, 1f) },
@@ -417,7 +441,6 @@ private fun UsageVsAverageCard(
                     .fillMaxWidth()
                     .height(8.dp)
             )
-
             Spacer(Modifier.height(12.dp))
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -434,39 +457,30 @@ private fun UsageVsAverageCard(
     }
 }
 
+/* ----------------------------- CHART ---------------------------- */
+
 @Composable
-fun LineChartScreen(viewModel: EcoTrackScreenViewModel, days_to_show: Float = 1f) {
+fun LineChartScreen(
+    viewModel: EcoTrackScreenViewModel,
+    days_to_show: Float = 1f,
+    onLatestValue: (Float) -> Unit = {}
+) {
     val dayUseList by viewModel.allDayUses.collectAsState(emptyList())
+    val dayUseListToShow = dayUseList.takeLast((days_to_show * 4 * 24).toInt())
 
-    val dayUseList_to_show = dayUseList.takeLast((days_to_show * 4 * 24).toInt())
+    if (dayUseListToShow.isNotEmpty()) {
+        val entries = dayUseListToShow.mapIndexed { index, dayUse -> Entry(index.toFloat(), dayUse.use) }
+        val latest = dayUseListToShow.last().use
+        LaunchedEffect(latest) { onLatestValue(latest) }
 
-    if (dayUseList_to_show.isNotEmpty()) {
-        val entries = dayUseList_to_show.mapIndexed { index, dayUse ->
-            Entry(index.toFloat(), dayUse.use)
-        }
-        /*
-        val dataSet = LineDataSet(entries, "Energy use (values recorded every 15 minutes)").apply {
-            colors = ColorTemplate.COLORFUL_COLORS.toList()
-        }
-
-        val lineData = LineData(dataSet)
-        lineData.setDrawValues(false)
-*/
         val chartRef = remember { mutableStateOf<LineChart?>(null) }
 
-        // Update chart data when entries change
         LaunchedEffect(entries) {
             chartRef.value?.let { chart ->
-                val dataSet =
-                    LineDataSet(entries, "Energy use (values recorded every 15 minutes)").apply {
-                        colors = ColorTemplate.COLORFUL_COLORS.toList()
-                    }
-                val lineData = LineData(dataSet).apply {
-                    setDrawValues(false)
-                }
-                chart.data = lineData
-                chart.notifyDataSetChanged()
-                chart.invalidate()
+                val dataSet = LineDataSet(entries, "Energy use (values recorded every 15 minutes)")
+                    .apply { colors = ColorTemplate.COLORFUL_COLORS.toList() }
+                val lineData = LineData(dataSet).apply { setDrawValues(false) }
+                chart.data = lineData; chart.notifyDataSetChanged(); chart.invalidate()
             }
         }
 
@@ -481,16 +495,48 @@ fun LineChartScreen(viewModel: EcoTrackScreenViewModel, days_to_show: Float = 1f
                     xAxis.position = XAxis.XAxisPosition.BOTTOM
                     xAxis.setDrawLabels(false)
                     animateY(4000)
-                    axisLeft.setAxisMinimum(0f)
-                    axisLeft.setAxisMaximum(4f)
+                    axisLeft.axisMinimum = 0f
+                    axisLeft.axisMaximum = 4f
                 }
             }
         )
     } else {
         Text("Loading chart data...")
-
     }
 }
+
+/* ----------------------------- OVERUSE PROMPT ----------------------------- */
+
+@Composable
+private fun OverusePrompt(
+    visible: Boolean,
+    currentKw: Float,
+    onDismiss: () -> Unit,
+    onBeforeNavigate: () -> Unit = {},
+    onGoToElectricity: () -> Unit
+) {
+    if (!visible) return
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.Warning, contentDescription = null) },
+        title = { Text("Usage spike detected") },
+        text = {
+            Text(
+                "Your current power draw (~${"%.1f".format(currentKw)} kW) is above a typical household right now. " +
+                        "Would you like to check your appliances to see which one might be costing you most?"
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onDismiss()
+                onBeforeNavigate()
+            }) { Text("Check appliances") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Not now") } }
+    )
+}
+
+/* --------------------------- CSV utilities (unchanged) -------------------- */
 
 data class CsvPowerRecord(
     val index: String,
@@ -501,13 +547,8 @@ data class CsvPowerRecord(
 
 object CsvRecordsObject {
     private var records: List<CsvPowerRecord>? = null
-    fun setRecords(new_records: List<CsvPowerRecord>) {
-        records = new_records
-    }
-
-    fun getRecords(): List<CsvPowerRecord>? {
-        return records
-    }
+    fun setRecords(new_records: List<CsvPowerRecord>) { records = new_records }
+    fun getRecords(): List<CsvPowerRecord>? = records
 }
 
 fun loadCsvData(context: Context, fileName: String) {
@@ -516,7 +557,7 @@ fun loadCsvData(context: Context, fileName: String) {
         val inputStream = context.assets.open(fileName)
         val reader = BufferedReader(InputStreamReader(inputStream))
         reader.useLines { lines ->
-            lines.drop(1).forEach { line -> // Skip header
+            lines.drop(1).forEach { line ->
                 val values = line.split(',', ';', '\t')
                 if (values.size >= 4) {
                     records.add(
@@ -533,7 +574,5 @@ fun loadCsvData(context: Context, fileName: String) {
     } catch (e: Exception) {
         e.printStackTrace()
     }
-    //set the records so they can be accessed by sensor data provider. this is not very neat
     CsvRecordsObject.setRecords(records)
-    return
 }
