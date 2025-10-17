@@ -9,6 +9,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,18 +30,23 @@ import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
-import kotlin.math.max
 import java.util.Locale
+import kotlin.math.max
 
 /* ----------------------------- UI model (derived) ---------------------------- */
 
 data class Appliance(
-    val id: String,          // <-- needed for edit/delete
+    val id: String,
     val iconEmoji: String,
     val name: String,
-    val spec: String,       // e.g., "1500W • 6h daily"
-    val costPerDay: String, // e.g., "$0.27/day"
-    val kwh: String         // e.g., "0.90 kWh"
+    val spec: String,       // "1500W • 6h daily"
+    val costPerDay: String, // "$0.27/day"
+    val kwh: String,        // "0.90 kWh"
+    // Parsed helpers for UI/ordering
+    val watt: Int = 0,
+    val hours: Float = 0f,
+    val kwhValue: Float = 0f,
+    val costValue: Float = 0f
 )
 
 /* ------------------------------- MAIN SCAFFOLD ------------------------------- */
@@ -49,7 +58,7 @@ fun ElectricityScaffold(
     onTabSelected: (route: String) -> Unit = {},
     onBack: () -> Unit = {},
     onAddAppliance: () -> Unit = {},
-    onEditAppliance: (id: String) -> Unit = {}   // <-- NEW
+    onEditAppliance: (id: String) -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -94,8 +103,8 @@ fun ElectricityScaffold(
                 .padding(inner)
         ) {
             ElectricityScreenFromFirestore(
-                onEdit = onEditAppliance,     // pass down
-                onDeleted = { /* no-op; list updates via snapshot */ }
+                onEdit = onEditAppliance,
+                onDeleted = { /* list live-updates via snapshot */ }
             )
         }
     }
@@ -117,11 +126,9 @@ private fun ElectricityScreenFromFirestore(
     var isLoading by remember { mutableStateOf(true) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    // state for delete-confirm dialog
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
     var pendingDeleteName by remember { mutableStateOf<String?>(null) }
 
-    // Listen to Firestore: users/{uid}/appliances
     DisposableEffect(uid) {
         var reg: ListenerRegistration? = null
         if (uid == null) {
@@ -163,7 +170,11 @@ private fun ElectricityScreenFromFirestore(
                             name = name,
                             spec = "${watt}W • ${hours}h daily",
                             costPerDay = String.format(Locale.getDefault(), "$%.2f/day", cost),
-                            kwh = String.format(Locale.getDefault(), "%.2f kWh", kwh)
+                            kwh = String.format(Locale.getDefault(), "%.2f kWh", kwh),
+                            watt = watt,
+                            hours = hours,
+                            kwhValue = kwh,
+                            costValue = cost
                         )
                     } ?: emptyList()
 
@@ -176,17 +187,14 @@ private fun ElectricityScreenFromFirestore(
         onDispose { reg?.remove() }
     }
 
-    // Derived header stats
     val usageKwhText = String.format(Locale.getDefault(), "%.2f kWh", totalKwh)
     val costText     = String.format(Locale.getDefault(), "$%.2f estimated cost", totalKwh * 0.30)
-    val co2KgText    = String.format(Locale.getDefault(), "CO\u2082: %.2fkg equivalent", totalKwh * 0.5)
-    val changePercent = "-0%" // placeholder
+    val co2KgText    = String.format(Locale.getDefault(), "CO\u2082: %.2f kg equivalent", totalKwh * 0.50)
 
     ElectricityScreen(
         usageKwh = usageKwhText,
         costEstimate = costText,
         co2 = co2KgText,
-        changePercent = changePercent,
         appliances = appliances,
         onEdit = { onEdit(it) },
         onDelete = { id, name ->
@@ -202,19 +210,20 @@ private fun ElectricityScreenFromFirestore(
     }
     errorMsg?.let {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            AssistChip(onClick = { /* no-op */ }, label = { Text(it) })
+            AssistChip(onClick = { }, label = { Text(it) })
         }
     }
 
-    // Confirm Delete dialog
+    // Delete confirm — RED filled button
     val toDeleteId = pendingDeleteId
+    val toDeleteName = pendingDeleteName
     if (toDeleteId != null && uid != null) {
         AlertDialog(
             onDismissRequest = { pendingDeleteId = null; pendingDeleteName = null },
             title = { Text("Delete appliance") },
-            text = { Text("Are you sure you want to delete “${pendingDeleteName ?: ""}”? This action can’t be undone.") },
+            text = { Text("Delete “${toDeleteName ?: ""}”? This can’t be undone.") },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         pendingDeleteId = null
                         pendingDeleteName = null
@@ -223,8 +232,13 @@ private fun ElectricityScreenFromFirestore(
                             .collection("appliances").document(toDeleteId)
                             .delete()
                             .addOnSuccessListener { onDeleted() }
-                            .addOnFailureListener { /* optional: surface error */ }
-                    }
+                            .addOnFailureListener { }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    shape = RoundedCornerShape(10.dp)
                 ) { Text("Delete") }
             },
             dismissButton = {
@@ -243,71 +257,39 @@ private fun ElectricityScreen(
     usageKwh: String,
     costEstimate: String,
     co2: String,
-    changePercent: String,
     appliances: List<Appliance>,
     onEdit: (id: String) -> Unit,
     onDelete: (id: String, name: String) -> Unit
 ) {
+    // Collapsible info: start hidden as requested
+    var showInfo by remember { mutableStateOf(false) }
+    // Sorting toggle (true = Cost, false = Name)
+    var sortByCost by remember { mutableStateOf(true) }
+
+    val sorted = remember(appliances, sortByCost) {
+        if (sortByCost) appliances.sortedByDescending { it.costValue }
+        else appliances.sortedBy { it.name.lowercase(Locale.getDefault()) }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
     ) {
+        item { SummaryHeaderCard(usageKwh, costEstimate, co2) }
+        item { InfoCollapsible(expanded = showInfo, onToggle = { showInfo = !showInfo }) }
+
+        // Single-choice segmented toggle for sorting
         item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        "Today's Usage",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            usageKwh,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                            modifier = Modifier.weight(1f)
-                        )
-                        ChangePill(changePercent)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        costEstimate,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-                    )
-                    Text(
-                        co2,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-                    )
-                }
-            }
+            SortToggle(
+                sortByCost = sortByCost,
+                onSortChange = { sortByCost = it },
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
         }
 
-        // Header
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("My Appliances", style = MaterialTheme.typography.titleMedium)
-            }
-        }
-
-        // List (may be empty)
-        items(appliances) { a ->
+        items(sorted) { a ->
             ApplianceCard(
                 appliance = a,
                 onEdit = { onEdit(a.id) },
@@ -316,7 +298,16 @@ private fun ElectricityScreen(
             Spacer(Modifier.height(12.dp))
         }
 
-        if (appliances.isEmpty()) {
+        if (sorted.isNotEmpty()) {
+            val totalCost = sorted.sumOf { it.costValue.toDouble() }.toFloat()
+            val totalKwh = sorted.sumOf { it.kwhValue.toDouble() }.toFloat()
+            item {
+                TotalsFooter(totalKwh, totalCost)
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+
+        if (sorted.isEmpty()) {
             item {
                 Text(
                     "No appliances yet. Tap the + button to add your first appliance.",
@@ -332,23 +323,131 @@ private fun ElectricityScreen(
 /* ------------------------------- COMPONENTS -------------------------------- */
 
 @Composable
-private fun ChangePill(text: String) {
-    val isDown = text.trim().startsWith("-")
-    val bg = if (isDown) MaterialTheme.colorScheme.tertiaryContainer
-    else MaterialTheme.colorScheme.errorContainer
-    val fg = if (isDown) MaterialTheme.colorScheme.onTertiaryContainer
-    else MaterialTheme.colorScheme.onErrorContainer
-
-    Surface(
-        color = bg,
-        shape = RoundedCornerShape(999.dp)
+private fun SortToggle(
+    sortByCost: Boolean,
+    onSortChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text,
-            fontSize = 12.sp,
-            color = fg,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-        )
+        Text("Sort", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.width(8.dp))
+
+        Row(
+            modifier = Modifier
+                .height(36.dp)
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant,
+                    RoundedCornerShape(12.dp)
+                )
+                .padding(4.dp)
+        ) {
+            val activeColors = ButtonDefaults.filledTonalButtonColors()
+            val inactiveColors = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
+
+            FilledTonalButton(
+                onClick = { if (!sortByCost) onSortChange(true) },
+                colors = if (sortByCost) activeColors else inactiveColors,
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)
+            ) { Text("By Cost") }
+
+            Spacer(Modifier.width(6.dp))
+
+            FilledTonalButton(
+                onClick = { if (sortByCost) onSortChange(false) },
+                colors = if (!sortByCost) activeColors else inactiveColors,
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                shape = RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)
+            ) { Text("By Name") }
+        }
+    }
+}
+
+@Composable
+private fun SummaryHeaderCard(usageKwh: String, costEstimate: String, co2: String) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "Today's Usage",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    usageKwh,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.weight(1f)
+                )
+                Surface(
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = RoundedCornerShape(999.dp)
+                ) {
+                    Text(
+                        "Estimates",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                costEstimate,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+            )
+            Text(
+                co2,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoCollapsible(expanded: Boolean, onToggle: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Info, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("About these estimates", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onToggle) {
+                    Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null)
+                }
+            }
+            if (expanded) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Each device cost is estimated from power (W) × usage hours ÷ 1000 × rate (≈ $0.30/kWh). " +
+                            "It’s a guide only. To be more accurate, double-check each appliance’s power rating " +
+                            "and keep daily usage hours up to date.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+        }
     }
 }
 
@@ -358,6 +457,8 @@ private fun ApplianceCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -400,13 +501,57 @@ private fun ApplianceCard(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FactChip("${appliance.hours} h")
+                FactChip("${appliance.watt} W")
+                FactChip(String.format(Locale.getDefault(), "%.2f kWh", appliance.kwhValue))
+            }
+
+            Spacer(Modifier.height(2.dp))
+            TextButton(
+                onClick = { expanded = !expanded },
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Icon(
+                    if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(if (expanded) "Hide details" else "Why this estimate?")
+            }
+
+            if (expanded) {
+                Text(
+                    "Estimate ≈ ${appliance.watt}W × ${appliance.hours}h ÷ 1000 × $0.30 = " +
+                            String.format(Locale.getDefault(), "$%.2f/day", appliance.costValue),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+
+            // Actions — primary + DESTRUCTIVE red filled button
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
-                    Text("Edit")
+                FilledTonalButton(
+                    onClick = onEdit,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Adjust usage")
                 }
-                OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
+                Button(
+                    onClick = onDelete,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
                     Text("Delete")
                 }
             }
@@ -414,61 +559,57 @@ private fun ApplianceCard(
     }
 }
 
-data class Suggestion(val title: String, val body: String, val leadingEmoji: String = "💡")
-
 @Composable
-private fun SuggestionCard(suggestion: Suggestion) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-        modifier = Modifier.fillMaxWidth()
+private fun FactChip(text: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(999.dp)
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface),
-                contentAlignment = Alignment.Center
-            ) { Text(suggestion.leadingEmoji) }
-
-            Spacer(Modifier.width(12.dp))
-
-            Column {
-                Text(
-                    suggestion.title,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    suggestion.body,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f),
-                    lineHeight = 18.sp,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        }
+        Text(
+            text,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
     }
 }
 
 @Composable
-private fun ActionCard(modifier: Modifier = Modifier, label: String) {
-    Card(shape = RoundedCornerShape(16.dp), modifier = modifier.height(72.dp)) {
+private fun TotalsFooter(totalKwh: Float, totalCost: Float) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .background(
                     Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f)
                         )
                     )
-                ),
-            contentAlignment = Alignment.Center
+                )
+                .padding(14.dp)
         ) {
-            Text(label, fontWeight = FontWeight.Medium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Appliance totals", fontWeight = FontWeight.Medium)
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        String.format(Locale.getDefault(), "%.2f kWh", totalKwh),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        String.format(Locale.getDefault(), "$%.2f/day", totalCost),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }

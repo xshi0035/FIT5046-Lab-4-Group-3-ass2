@@ -4,11 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -20,38 +22,37 @@ import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val ecoTrackScreenViewModel: EcoTrackScreenViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        loadCsvData(context = this, fileName = "household_power_consumption.csv")
         enableEdgeToEdge()
         setContent {
             FIT5046Lab4Group3ass2Theme {
-                AppNav()
+                AppNav(ecoTrackScreenViewModel)
             }
         }
     }
 }
 
 @Composable
-private fun AppNav() {
+private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
     val nav = rememberNavController()
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
 
-    fun goHome() {
-        nav.navigate(ROUTE_HOME) {
+    /** One true way to move between tabs (Home/Appliances/EcoTrack/Rewards/Profile). */
+    fun navigateTab(route: String) {
+        nav.navigate(route) {
             launchSingleTop = true
-            popUpTo(ROUTE_HOME) { inclusive = false; saveState = true }
             restoreState = true
+            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
         }
     }
 
-    fun onTab(route: String) {
-        nav.navigate(route) {
-            launchSingleTop = true
-            popUpTo(ROUTE_HOME) { inclusive = false; saveState = true }
-            restoreState = true
-        }
-    }
+    fun goHome() = navigateTab(ROUTE_HOME)
+    fun onTab(route: String) = navigateTab(route)
 
     NavHost(
         navController = nav,
@@ -96,7 +97,7 @@ private fun AppNav() {
             )
         }
 
-        // Starting page (no bottom bar in this screen)
+        // Starting page (no bottom bar)
         composable("home_start") {
             HomeScaffold(
                 onNotificationsClick = { /* optional */ },
@@ -112,7 +113,7 @@ private fun AppNav() {
             )
         }
 
-        // Profile setup (no bottom bar in this screen). On save -> Home tab.
+        // Profile setup (no bottom bar). On save -> Home tab.
         composable("profile_setup") {
             ProfileScaffold(
                 onSaved = {
@@ -124,16 +125,19 @@ private fun AppNav() {
             )
         }
 
-        /* ---------------------- Main tab destinations ------------------- */
+        /* --------------------------- Tab destinations ------------------- */
 
         composable(ROUTE_HOME) {
             HomePageScaffold(
                 currentRoute = ROUTE_HOME,
                 onTabSelected = ::onTab,
-                onAddAppliance = { nav.navigate(ROUTE_APPLIANCES) },
-                onOpenEcoTrack = { nav.navigate(ROUTE_ECOTRACK) },
-                onViewTips = { nav.navigate("tips") },
-                onViewRewards = { nav.navigate(ROUTE_REWARDS) }
+
+                // ✅ QUICK ACTIONS now use the same tab navigation helper
+                onAddAppliance = { onTab(ROUTE_APPLIANCES) },
+                onOpenEcoTrack = { onTab(ROUTE_ECOTRACK) },
+                onViewTips = { nav.navigate("tips") },        // non-tab page
+                onViewRewards = { onTab(ROUTE_REWARDS) },
+                viewModel = ecoTrackScreenViewModel
             )
         }
 
@@ -142,9 +146,9 @@ private fun AppNav() {
             ElectricityScaffold(
                 currentRoute = ROUTE_APPLIANCES,
                 onTabSelected = ::onTab,
-                onBack = ::goHome,
+                onBack = { nav.popBackStack() },              // ✅ back to Home
                 onAddAppliance = { nav.navigate("appliance_add") },
-                onEditAppliance = { id -> nav.navigate("appliance_add?applianceId=$id") } // EDIT -> Add screen with id
+                onEditAppliance = { id -> nav.navigate("appliance_add?applianceId=$id") }
             )
         }
 
@@ -168,7 +172,9 @@ private fun AppNav() {
             EcoTrackScaffold(
                 currentRoute = ROUTE_ECOTRACK,
                 onTabSelected = ::onTab,
-                onBack = ::goHome
+                onBack = { nav.popBackStack() },              // ✅
+                viewModel = ecoTrackScreenViewModel,
+                onGoToElectricity = { onTab(ROUTE_APPLIANCES) }
             )
         }
 
@@ -195,24 +201,40 @@ private fun AppNav() {
                 ),
                 currentRoute = ROUTE_REWARDS,
                 onTabSelected = ::onTab,
-                onBack = ::goHome
+                onBack = { nav.popBackStack() }               // ✅
             )
         }
 
         composable(ROUTE_PROFILE) {
             ProfileRoute(
-                onBack = ::goHome,
+                onBack = { nav.popBackStack() },              // ✅
                 onNotifications = { /* optional */ },
                 onEditProfile = { nav.navigate("profile_setup") },
                 onTabSelected = ::onTab
             )
         }
 
-        /* ---------------------- Non-tab page with bar ------------------- */
+        /* ---------------------- Non-tab page WITH bar ------------------- */
         composable("tips") {
             TipsScaffold(
-                onBack = ::goHome,
+                onBack = { nav.popBackStack() },              // ✅
                 onNotifications = { /* optional */ },
+                onTabSelected = ::onTab
+            )
+        }
+
+        composable(ROUTE_PROFILE) {
+            ProfileRoute(
+                onBack = { nav.popBackStack() },
+                onNotifications = { /* optional */ },
+                onEditProfile = { nav.navigate("profile_setup") },
+                onLogout = {
+                    // After signOut (done in ProfileRoute), go to login and clear stack
+                    nav.navigate("login") {
+                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 onTabSelected = ::onTab
             )
         }

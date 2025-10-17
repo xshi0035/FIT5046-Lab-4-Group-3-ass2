@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
     id("com.google.gms.google-services")
 }
 
@@ -41,7 +42,7 @@ android {
 }
 
 dependencies {
-
+    val work_version = "2.10.5"
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -62,6 +63,15 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
     debugImplementation(libs.androidx.compose.ui.tooling)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation (libs.retrofit)
+    implementation (libs.converter.gson)
+    implementation(libs.gson)
+    implementation(libs.logging.interceptor)
+    implementation(libs.mpandroidchart)
+    implementation("androidx.work:work-runtime-ktx:${work_version}")
     // Import the Firebase BoM
     implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
     // TODO: Add the dependencies for Firebase products you want to use

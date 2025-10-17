@@ -1,8 +1,6 @@
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -10,38 +8,59 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.fit5046_lab4_group3_ass2.EcoTrackScreenViewModel
+import com.example.fit5046_lab4_group3_ass2.Quad
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import kotlin.math.max
 
-/* ROUTE_* constants now come from EcoBottomBar.kt */
+/* ROUTE_* constants come from EcoBottomBar.kt */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomePageScaffold(
+    viewModel: EcoTrackScreenViewModel,
     // Which tab should appear selected in the bar
     currentRoute: String = ROUTE_HOME,
-
-    // Bottom bar navigation
     onTabSelected: (route: String) -> Unit = {},
-
-    // Quick actions
     onAddAppliance: () -> Unit = {},
     onOpenEcoTrack: () -> Unit = {},
     onViewTips: () -> Unit = {},
     onViewRewards: () -> Unit = {},
-
-    // Optional top-right action
     onNotificationsClick: () -> Unit = {}
 ) {
     Scaffold(
@@ -77,6 +96,7 @@ fun HomePageScaffold(
                 .padding(inner)
         ) {
             Home(
+                viewModel = viewModel,
                 onAddAppliance = onAddAppliance,
                 onOpenEcoTrack = onOpenEcoTrack,
                 onViewTips = onViewTips,
@@ -100,6 +120,13 @@ private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+/** Small util for pretty numbers like 2,450 */
+private fun fmtInt(i: Int): String = NumberFormat.getIntegerInstance().format(i)
+private fun fmtKwh(v: Double): String = String.format(Locale.getDefault(), "%.1f kWh", v)
+private fun pctText(deltaPct: Double?): String =
+    deltaPct?.let { (if (it >= 0) "+" else "") + String.format(Locale.getDefault(), "%.0f%%", it) } ?: ""
+
+/** Same card renderer you already had */
 @Composable
 private fun HomeScreenCard(
     modifier: Modifier = Modifier,
@@ -181,7 +208,7 @@ private fun HomeScreenCard(
 
 @Composable
 private fun QuickActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
@@ -205,13 +232,155 @@ private fun QuickActionButton(
     }
 }
 
+private enum class PriceSeverity { Normal, High, Severe }
+private enum class UsageSeverity { Low, Normal, High }
+
 @Composable
 private fun Home(
+    viewModel: EcoTrackScreenViewModel,
     onAddAppliance: () -> Unit,
     onOpenEcoTrack: () -> Unit,
     onViewTips: () -> Unit,
     onViewRewards: () -> Unit
 ) {
+    //get info for recent activity
+    //For getting latest prices from API
+    LaunchedEffect(Unit) {
+        viewModel.customSearch()
+    }
+    val itemsReturned by viewModel.retrofitResponse
+    val price = if (itemsReturned.data.isNotEmpty()) {
+        itemsReturned.data[0].results[0].data
+            .last { it.size > 1 && it[1] is Number }[1].toString().toFloat()
+    } else {
+        0f
+    }
+
+    val dayUseList by viewModel.allDayUses.collectAsState(emptyList())
+    var latest_use : Float
+    if (!dayUseList.isEmpty()) {
+        latest_use = dayUseList.last().use
+    } else {
+        latest_use = 2.5f //so that the notification doesn't show
+    }
+    //latest_use = 1f //testing
+
+    val currentUse = when {
+        latest_use < 2f -> UsageSeverity.Low
+        latest_use > 3f -> UsageSeverity.High
+        else -> UsageSeverity.Normal
+    }
+    //val rrpAudPerMwh = 300f// testing
+    val severity = when {
+        price > 200f -> PriceSeverity.Severe
+        price > 100f -> PriceSeverity.High
+        else -> PriceSeverity.Normal
+    }
+
+    var selectedMode by remember { mutableStateOf(1f) }
+    val modes = listOf(0.25f, 1f, 7f, 30f)
+    val mode_names = mapOf(0.25f to "6 hours", 1f to "1 day", 7f to "Week", 30f to "Month")
+    // Firebase handles
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+    val uid = auth.currentUser?.uid
+
+    // EcoPoints total (same as Rewards page: sum of users/{uid}/rewards points)
+    var ecoPoints by remember { mutableStateOf<Int?>(null) }
+
+    // Electricity today (same as EcoTrack estimation from appliances)
+    var todayKwh by remember { mutableStateOf<Double?>(null) }
+
+    // % vs last estimate (from metrics/lastEstimate.kwh)
+    var deltaPct by remember { mutableStateOf<Double?>(null) }
+
+    // Small loading states
+    var isLoadingRewards by remember { mutableStateOf(true) }
+    var isLoadingElectric by remember { mutableStateOf(true) }
+
+    /* -------- Listen to rewards to compute EcoPoints total -------- */
+    DisposableEffect(uid) {
+        if (uid == null) return@DisposableEffect onDispose { }
+        val reg: ListenerRegistration =
+            db.collection("users").document(uid).collection("rewards")
+                .addSnapshotListener { snap, e ->
+                    if (e != null) {
+                        isLoadingRewards = false
+                        return@addSnapshotListener
+                    }
+                    val total = snap?.documents?.sumOf { (it.getLong("points") ?: 0L).toInt() } ?: 0
+                    ecoPoints = total
+                    isLoadingRewards = false
+                }
+        onDispose { reg.remove() }
+    }
+
+    /* -------- Read appliances to estimate today's kWh (same as EcoTrack) ---- */
+    // And read metrics/lastEstimate to compute % change and a progress fraction
+    LaunchedEffect(uid) {
+        if (uid == null) return@LaunchedEffect
+        // 1) appliances → sum(watt * hours / 1000)
+        db.collection("users").document(uid).collection("appliances")
+            .get()
+            .addOnSuccessListener { docs ->
+                var sum = 0.0
+                docs.forEach { d ->
+                    val watt = (d.getLong("watt") ?: 0L).toInt()
+                    val hours = (d.getDouble("hours") ?: 0.0)
+                    sum += max(0.0, watt * hours / 1000.0)
+                }
+                todayKwh = sum
+                isLoadingElectric = false
+            }
+            .addOnFailureListener { isLoadingElectric = false }
+
+        // 2) baseline for delta %
+        db.collection("users").document(uid)
+            .collection("metrics").document("lastEstimate")
+            .get()
+            .addOnSuccessListener { d ->
+                val base = d.getDouble("kwh")
+                val cur = todayKwh
+                if (base != null && base > 0 && cur != null) {
+                    deltaPct = ((cur - base) / base) * 100.0
+                } else {
+                    deltaPct = null
+                }
+            }
+    }
+
+    /* --------- UI ----------------------------------------------------------- */
+
+    val pointsText = when {
+        isLoadingRewards -> "—"
+        ecoPoints == null -> "0"
+        else -> fmtInt(ecoPoints!!)
+    }
+
+    val kwhText = when {
+        isLoadingElectric -> "—"
+        todayKwh == null -> "0.0 kWh"
+        else -> fmtKwh(todayKwh!!)
+    }
+
+    // Progress bar for the electricity card: compare to baseline if present,
+    // otherwise show no bar.
+    val progressFraction: Float = run {
+        val cur = todayKwh
+        var base: Double? = null
+        // We can't block; recompute base quickly from delta if available:
+        if (cur != null && deltaPct != null && deltaPct!!.isFinite()) {
+            // deltaPct = (cur - base) / base  => base = cur / (1 + deltaPct)
+            val denom = 1.0 + (deltaPct!! / 100.0)
+            if (denom != 0.0) base = cur / denom
+        }
+        if (cur != null && base != null && base!! > 0.0) {
+            (cur / max(cur, base!!)).toFloat().coerceIn(0f, 1f)
+        } else 0f
+    }
+
+    val rightDeltaText = pctText(deltaPct)
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
@@ -234,20 +403,23 @@ private fun Home(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                // EcoPoints – shows the SAME total as Rewards
                 HomeScreenCard(
                     title = "EcoPoints",
-                    mainText = "2,450",
-                    smallText = "🔥 7-day streak",
+                    mainText = pointsText,
+                    smallText = "Your total points",
                     rightText = "\uD83C\uDFC6",
                     tonal = true,
                     valueStyle = MaterialTheme.typography.displaySmall
                 )
+
+                // Electricity – shows the SAME 'today estimate' as EcoTrack
                 HomeScreenCard(
                     title = "⚡ Electricity",
-                    mainText = "8.4 kWh",
+                    mainText = kwhText,
                     smallText = "Today's usage",
-                    progress = 0.8f,
-                    rightText = "-12%",
+                    progress = progressFraction,
+                    rightText = rightDeltaText,
                     tonal = true,
                     valueStyle = MaterialTheme.typography.titleMedium
                 )
@@ -262,7 +434,7 @@ private fun Home(
                         onClick = onAddAppliance
                     )
                     QuickActionButton(
-                        icon = androidx.compose.material.icons.Icons.Filled.Info,
+                        icon = Icons.Filled.Info,
                         label = "Open EcoTrack",
                         modifier = Modifier.weight(1f),
                         onClick = onOpenEcoTrack
@@ -279,7 +451,7 @@ private fun Home(
                         onClick = onViewTips
                     )
                     QuickActionButton(
-                        icon = androidx.compose.material.icons.Icons.Filled.Star,
+                        icon = Icons.Filled.Star,
                         label = "View Rewards",
                         modifier = Modifier.weight(1f),
                         onClick = onViewRewards
@@ -287,40 +459,94 @@ private fun Home(
                 }
 
                 SectionTitle("Recent Activity")
-
-                HomeScreenCard(
-                    title = "⚡ Usage goal met",
-                    mainText = "",
-                    smallText = "Yesterday",
-                    rightText = "+100 pts"
-                )
-                HomeScreenCard(
-                    title = "🔌 New appliance added",
-                    mainText = "",
-                    smallText = "5 hours ago",
-                    rightText = "+25 pts"
-                )
-                HomeScreenCard(
-                    title = "ℹ️ Price tip viewed",
-                    mainText = "",
-                    smallText = "2 hours ago",
-                    rightText = "+10 pts"
-                )
-
-                SectionTitle("Information")
-                HomeScreenCard(
-                    title = "\uD83D\uDCA1 Today's Eco Tip",
-                    mainText = "",
-                    smallText = "Unplug devices when not in use",
-                    rightText = ""
-                )
+                if (severity != PriceSeverity.Normal) {
+                    PriceAlertBanner(price, severity)
+                }
+                // low or high usage banner
+                if (currentUse != UsageSeverity.Normal) {
+                    UsageAlertBanner(latest_use, currentUse)
+                }
             }
         }
     }
 }
 
-/* -------------------------------- PREVIEW ---------------------------------- */
+@Composable
+private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
+    val (containerColor, title, message, icon) = when (severity) {
+        PriceSeverity.Severe -> Quad(
+            MaterialTheme.colorScheme.errorContainer,
+            "Severe price alert",
+            "Prices are very high (> 200 AUD/MWh). Cutting back now can save a lot.",
+            Icons.Filled.Warning
+        )
 
+        PriceSeverity.High -> Quad(
+            MaterialTheme.colorScheme.tertiaryContainer,
+            "High price alert",
+            "Electricity prices are high (> 100 AUD/MWh). Consider reducing usage.",
+            Icons.Filled.Info
+        )
+
+        PriceSeverity.Normal -> return
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            //AssistChip(onClick = { /* UI only */ }, label = { Text("Details") })
+        }
+    }
+}
+
+@Composable
+private fun UsageAlertBanner(current_usage: Float, usageSeverity: UsageSeverity) {
+    val (containerColor, title, message, icon) = when (usageSeverity) {
+        UsageSeverity.Low -> Quad(
+            MaterialTheme.colorScheme.tertiaryContainer,
+            "Low energy use! ${current_usage} kW",
+            "Good job!",
+            Icons.Filled.Star
+        )
+
+        UsageSeverity.High -> Quad(
+            MaterialTheme.colorScheme.errorContainer,
+            "High energy use",
+            "${current_usage} kW",
+            Icons.Filled.Warning
+        )
+
+        UsageSeverity.Normal -> return
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            //AssistChip(onClick = { /* UI only */ }, label = { Text("Details") })
+        }
+    }
+}
+
+/* -------------------------------- PREVIEW ---------------------------------- */
+/*
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 private fun HomePageScaffoldPreview() {
@@ -335,3 +561,4 @@ private fun HomePageScaffoldPreview() {
         )
     }
 }
+*/
