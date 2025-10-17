@@ -396,7 +396,7 @@ private fun ProfileContent(
 
         // About
         item { SectionHeader("About App") }
-        item { SettingChevronRow(title = "Learn about UN SDG Goals", onClick = onTapAbout) }
+        item { SettingChevronRow(title = "About App", onClick = onTapAbout) }
 
         item { Divider() }
         item { SettingChevronRow(title = "Learn about UN SDG Goals", onClick = onTapSdg) }
