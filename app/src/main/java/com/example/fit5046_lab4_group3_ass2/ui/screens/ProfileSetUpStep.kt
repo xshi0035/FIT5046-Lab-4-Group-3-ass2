@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
 import androidx.compose.foundation.background
@@ -24,30 +26,32 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
-import com.example.fit5046_lab4_group3_ass2.data.UserProfile
 import com.example.fit5046_lab4_group3_ass2.data.ProfileRepo
+import com.example.fit5046_lab4_group3_ass2.data.UserProfile
+import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 /* ------------------------------- SCAFFOLD ---------------------------------- */
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScaffold(
     startStep: Int = 1,
-    onSaved: () -> Unit = {}
+    onSaved: () -> Unit = {},
+    onBack: () -> Unit = {}                 // Step 1 back -> Profile
 ) {
-    // 1..2
     var step by rememberSaveable { mutableStateOf(startStep.coerceIn(1, 2)) }
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val auth = remember { FirebaseAuth.getInstance() }
 
     // ---------------- Form state shared across steps ----------------
     var name by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
-    var dob by rememberSaveable { mutableStateOf("") }                    // "yyyy-MM-dd"
+    var dob by rememberSaveable { mutableStateOf("") } // "yyyy-MM-dd"
 
     var householdSize by rememberSaveable { mutableStateOf("1") }
     var homeType by rememberSaveable { mutableStateOf("Apartment") }
@@ -61,15 +65,54 @@ fun ProfileScaffold(
     var avatar by rememberSaveable { mutableStateOf("🌳") }
 
     var saving by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(true) }
+
+    /* --------- Fetch current profile FIRST (nullable-safe) --------- */
+    LaunchedEffect(Unit) {
+        loading = true
+        ProfileRepo.get { res ->
+            res.onSuccess { maybe ->
+                // maybe: UserProfile?  (handle safely)
+                val p = maybe
+                if (p != null) {
+                    if (p.name.isNotBlank()) name = p.name
+                    email = if (p.email.isNotBlank()) p.email else auth.currentUser?.email.orEmpty()
+                    dob = p.dob.orEmpty()
+
+                    if (p.householdSize > 0) householdSize = p.householdSize.toString()
+                    if (p.homeType.isNotBlank()) homeType = p.homeType
+
+                    if (p.state.isNotBlank()) state = p.state
+                    electricityProvider = p.electricityProvider.orEmpty()
+                    energyTips = p.energyTips
+                    weeklySummary = p.weeklySummary
+                    if (p.motivationStyle.isNotBlank()) motivationStyle = p.motivationStyle
+                    dashboardName = p.dashboardName.orEmpty()
+                    if (p.avatar.isNotBlank()) avatar = p.avatar
+                } else {
+                    // No existing doc; at least prefill email if logged in
+                    email = auth.currentUser?.email.orEmpty()
+                }
+            }.onFailure { e ->
+                email = auth.currentUser?.email.orEmpty()
+                scope.launch { snackbarHost.showSnackbar(e.message ?: "Failed to load profile.") }
+            }
+            loading = false
+        }
+    }
+
+    fun handleBack() {
+        if (step > 1) step-- else onBack()
+    }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Set Up Profile") },
                 navigationIcon = {
-                    IconButton(
-                        onClick = { if (step > 1) step-- }
-                    ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = ::handleBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
                 },
                 actions = {
                     // Notifications bell with unread dot (UI-only)
@@ -89,71 +132,76 @@ fun ProfileScaffold(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHost) },
-        bottomBar = { /* your bottom bar if needed */ }
+        bottomBar = { /* no bottom bar here */ }
     ) { inner ->
         Surface(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
         ) {
-            ProfileSetup(
-                step = step,
-                // STEP 1 contents use bound states
-                name = name, onName = { name = it },
-                email = email, onEmail = { email = it },
-                dob = dob, onDob = { dob = it },
-                householdSize = householdSize, onHouseholdSize = { s ->
-                    householdSize = s.filter { c -> c.isDigit() }.ifEmpty { "0" }
-                },
-                homeType = homeType, onHomeType = { homeType = it },
+            if (loading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                ProfileSetup(
+                    step = step,
+                    // STEP 1
+                    name = name, onName = { name = it },
+                    email = email, onEmail = { email = it },
+                    dob = dob, onDob = { dob = it },
+                    householdSize = householdSize, onHouseholdSize = { s ->
+                        householdSize = s.filter { it.isDigit() }.ifEmpty { "0" }
+                    },
+                    homeType = homeType, onHomeType = { homeType = it },
 
-                // STEP 2 contents use bound states
-                state = state, onState = { state = it },
-                electricityProvider = electricityProvider, onProvider = { electricityProvider = it },
-                energyTips = energyTips, onEnergyTips = { energyTips = it },
-                weeklySummary = weeklySummary, onWeeklySummary = { weeklySummary = it },
-                motivationStyle = motivationStyle, onMotivation = { motivationStyle = it },
-                dashboardName = dashboardName, onDashboardName = { dashboardName = it },
-                avatar = avatar, onAvatar = { avatar = it },
+                    // STEP 2
+                    state = state, onState = { state = it },
+                    electricityProvider = electricityProvider, onProvider = { electricityProvider = it },
+                    energyTips = energyTips, onEnergyTips = { energyTips = it },
+                    weeklySummary = weeklySummary, onWeeklySummary = { weeklySummary = it },
+                    motivationStyle = motivationStyle, onMotivation = { motivationStyle = it },
+                    dashboardName = dashboardName, onDashboardName = { dashboardName = it },
+                    avatar = avatar, onAvatar = { avatar = it },
 
-                onStepPrev = { if (step > 1) step-- },
-                onStepNext = { if (step < 2) step++ },
-                onStepJump = { s -> step = s.coerceIn(1, 2) },
+                    onStepPrev = { handleBack() },
+                    onStepNext = { if (step < 2) step++ },
+                    onStepJump = { s -> step = s.coerceIn(1, 2) },
 
-                onSave = {
-                    // Simple validation
-                    val hh = householdSize.toIntOrNull()
-                    if (name.isBlank() || email.isBlank() || hh == null || hh <= 0) {
-                        scope.launch { snackbarHost.showSnackbar("Please fill all required fields.") }
-                        return@ProfileSetup
-                    }
-                    saving = true
-                    val payload = UserProfile(
-                        name = name.trim(),
-                        email = email.trim(),
-                        dob = dob,
-                        householdSize = hh,
-                        homeType = homeType,
-                        state = state,
-                        electricityProvider = electricityProvider.trim(),
-                        energyTips = energyTips,
-                        weeklySummary = weeklySummary,
-                        motivationStyle = motivationStyle,
-                        dashboardName = dashboardName.trim(),
-                        avatar = avatar
-                    )
-                    ProfileRepo.upsert(payload) { res ->
-                        saving = false
-                        res.onSuccess {
-                            scope.launch { snackbarHost.showSnackbar("Profile saved!") }
-                            onSaved()
-                        }.onFailure { e ->
-                            scope.launch { snackbarHost.showSnackbar(e.message ?: "Failed to save profile.") }
+                    onSave = {
+                        val hh = householdSize.toIntOrNull()
+                        if (name.isBlank() || email.isBlank() || hh == null || hh <= 0) {
+                            scope.launch { snackbarHost.showSnackbar("Please fill all required fields.") }
+                            return@ProfileSetup
                         }
-                    }
-                },
-                saving = saving
-            )
+                        saving = true
+                        val payload = UserProfile(
+                            name = name.trim(),
+                            email = email.trim(),
+                            dob = dob,
+                            householdSize = hh,
+                            homeType = homeType,
+                            state = state,
+                            electricityProvider = electricityProvider.trim(),
+                            energyTips = energyTips,
+                            weeklySummary = weeklySummary,
+                            motivationStyle = motivationStyle,
+                            dashboardName = dashboardName.trim(),
+                            avatar = avatar
+                        )
+                        ProfileRepo.upsert(payload) { up ->
+                            saving = false
+                            up.onSuccess {
+                                scope.launch { snackbarHost.showSnackbar("Profile saved!") }
+                                onSaved()
+                            }.onFailure { e ->
+                                scope.launch { snackbarHost.showSnackbar(e.message ?: "Failed to save profile.") }
+                            }
+                        }
+                    },
+                    saving = saving
+                )
+            }
         }
     }
 }
@@ -286,17 +334,11 @@ private fun ProfileSetup(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
 
-        // Progress header
-        item {
-            SetupProgress(step = step, onStepClick = onStepJump)
-        }
+        item { SetupProgress(step = step, onStepClick = onStepJump) }
 
-        // Small helper text
         item { SmallText("* means the field is required to be filled in.") }
 
-        // STEP 1 ---------------------------------------------------------------
         if (step == 1) {
-            // User Information
             item {
                 SectionCard("User Information") {
                     OutlinedTextField(
@@ -315,7 +357,6 @@ private fun ProfileSetup(
                 }
             }
 
-            // Household Information
             item {
                 SectionCard("Household Information") {
                     SmallText("How many people live in your household?")
@@ -327,7 +368,7 @@ private fun ProfileSetup(
                     )
 
                     Spacer(Modifier.height(16.dp))
-                    Divider()
+                    HorizontalDivider()
                     Spacer(Modifier.height(16.dp))
 
                     SmallText("Which type of home do you live in?")
@@ -357,7 +398,6 @@ private fun ProfileSetup(
                 }
             }
 
-            // Footer buttons (Step 1)
             item {
                 Row(Modifier.fillMaxWidth()) {
                     Button(
@@ -370,9 +410,7 @@ private fun ProfileSetup(
             }
         }
 
-        // STEP 2 ---------------------------------------------------------------
         if (step == 2) {
-            // Location and Utility Information
             item {
                 SectionCard("Location and Utility Information") {
                     SmallText("Select your state:")
@@ -389,7 +427,6 @@ private fun ProfileSetup(
                 }
             }
 
-            // Eco Preferences
             item {
                 SectionCard("Eco Preferences") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -402,7 +439,7 @@ private fun ProfileSetup(
                     }
 
                     Spacer(Modifier.height(16.dp))
-                    Divider()
+                    HorizontalDivider()
                     Spacer(Modifier.height(16.dp))
 
                     SmallText("What is your preferred motivation style? *")
@@ -432,7 +469,6 @@ private fun ProfileSetup(
                 }
             }
 
-            // Additional Personalisation
             item {
                 SectionCard("Additional Personalisation") {
                     SmallText("Name for Dashboard:")
@@ -466,7 +502,6 @@ private fun ProfileSetup(
                 }
             }
 
-            // Footer buttons (Step 2)
             item {
                 Row(Modifier.fillMaxWidth()) {
                     Button(
@@ -510,7 +545,6 @@ private fun CheckboxItem(name: String) {
 }
 
 /* Date picker that returns "yyyy-MM-dd" via onPicked */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DisplayDatePicker(value: String, onPicked: (String) -> Unit) {
     val formatter = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
@@ -553,7 +587,6 @@ private fun DisplayDatePicker(value: String, onPicked: (String) -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StateMenu(value: String, onValueChange: (String) -> Unit) {
     val states = listOf("VIC", "QLD", "NSW", "SA", "TAS", "WA", "ACT", "NT")
@@ -566,7 +599,7 @@ private fun StateMenu(value: String, onValueChange: (String) -> Unit) {
     ) {
         OutlinedTextField(
             modifier = Modifier
-                .menuAnchor()
+                .menuAnchor(type = MenuAnchorType.PrimaryNotEditable)
                 .fillMaxWidth()
                 .focusProperties { canFocus = false },
             readOnly = true,
