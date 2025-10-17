@@ -22,17 +22,23 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.fit5046_lab4_group3_ass2.ui.screens.EcoBottomBar
 import com.example.fit5046_lab4_group3_ass2.ui.screens.ROUTE_ECOTRACK
+import com.example.fit5046_lab4_group3_ass2.ui.screens.ROUTE_REWARDS
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.utils.ColorTemplate
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 
@@ -105,7 +111,8 @@ fun EcoTrackScaffold(
                 kpiTodayText = kpiTodayText,
                 kpiVsYesterdayText = kpiVsYesterdayText,
                 kpiCostTodayText = kpiCostTodayText,
-                onGoToElectricity = onGoToElectricity
+                onGoToElectricity = onGoToElectricity,
+                onOpenRewards = { onTabSelected(ROUTE_REWARDS) }
             )
         }
     }
@@ -125,7 +132,8 @@ fun EcoTrackScreen(
     kpiTodayText: String = "8.2",
     kpiVsYesterdayText: String = "-12%",
     kpiCostTodayText: String = "$2.46",
-    onGoToElectricity: () -> Unit = {}
+    onGoToElectricity: () -> Unit = {},
+    onOpenRewards: () -> Unit = {}
 ) {
     val severity = when {
         rrpAudPerMwh > 200f -> PriceSeverity.Severe
@@ -154,7 +162,10 @@ fun EcoTrackScreen(
     var baselineKwh by remember { mutableStateOf<Double?>(null) }
     var backfilled by remember { mutableStateOf(false) }
 
-    // 1) Read appliances and compute current estimate
+    var pendingPoints by remember { mutableStateOf(0) }
+    var pendingBadges by remember { mutableStateOf(0) }
+
+    // 1) Read appliances -> current estimate
     LaunchedEffect(uid) {
         if (uid == null) return@LaunchedEffect
         db.collection("users").document(uid).collection("appliances")
@@ -171,64 +182,82 @@ fun EcoTrackScreen(
                 val cost = sumKwh * 0.30
                 kpiToday = String.format(Locale.getDefault(), "%.2f", sumKwh)
                 kpiCost = String.format(Locale.getDefault(), "$%.2f", cost)
-                Log.d("EcoTrack", "Current estimate (kWh) = $sumKwh")
             }
             .addOnFailureListener { e -> Log.w("EcoTrack", "Failed to read appliances", e) }
+
+        db.collection("users").document(uid)
+            .collection("metrics").document("pendingRewards")
+            .get()
+            .addOnSuccessListener { d ->
+                pendingPoints = (d.getLong("points") ?: 0L).toInt()
+                pendingBadges = (d.getLong("badges") ?: 0L).toInt()
+            }
     }
 
-    // 2) Live-listen to baseline doc so UI updates as soon as it exists/changes
+    // 2) Listen to baseline (metrics/lastEstimate)
     DisposableEffect(uid) {
         var reg: ListenerRegistration? = null
         if (uid != null) {
             reg = db.collection("users").document(uid)
                 .collection("metrics").document("lastEstimate")
-                .addSnapshotListener { doc, err ->
-                    if (err != null) {
-                        Log.w("EcoTrack", "Baseline listen failed", err)
-                        return@addSnapshotListener
-                    }
+                .addSnapshotListener { doc, _ ->
                     baselineKwh = doc?.getDouble("kwh")
-                    Log.d("EcoTrack", "Baseline updated to ${baselineKwh}")
                 }
         }
         onDispose { reg?.remove() }
     }
 
-    // 3) Compute % vs baseline whenever either side changes
-    LaunchedEffect(currentEstimateKwh, baselineKwh) {
-        baselineKwh?.let { base ->
-            if (base > 0.0) {
-                val pct = ((currentEstimateKwh - base) / base) * 100.0
-                val sign = if (pct >= 0) "+" else ""
-                kpiVsLast = String.format(Locale.getDefault(), "%s%.0f%%", sign, pct)
-            } else {
-                kpiVsLast = "—"
-            }
-        } ?: run { kpiVsLast = "—" }
+    // 3) Compute % vs baseline, and LOG daily savedPct once/day
+    fun dateKey(d: Date = Date()) =
+        SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(d)
+
+    var savedLoggedKey by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(currentEstimateKwh, baselineKwh, uid) {
+        val base = baselineKwh
+        val id = uid ?: return@LaunchedEffect
+        if (base == null || base <= 0.0) {
+            kpiVsLast = "—"
+            return@LaunchedEffect
+        }
+        val pct = ((currentEstimateKwh - base) / base) * 100.0
+        val sign = if (pct >= 0) "+" else ""
+        kpiVsLast = String.format(Locale.getDefault(), "%s%.0f%%", sign, pct)
+
+        // Write one record per day to metrics/savingsLog/days/{yyyyMMdd}
+        val key = dateKey()
+        if (savedLoggedKey != key) {
+            savedLoggedKey = key
+            val path = db.collection("users").document(id)
+                .collection("metrics").document("savingsLog")
+                .collection("days").document(key)
+
+            val data = mapOf(
+                "kwh" to currentEstimateKwh,
+                "baselineKwh" to base,
+                "savedPct" to pct,
+                "ts" to FieldValue.serverTimestamp()
+            )
+            path.set(data)
+        }
     }
 
-    // 4) Auto-backfill baseline ONCE after we have current estimate
+    // 4) Auto-backfill baseline ONCE
     LaunchedEffect(currentEstimateKwh, baselineKwh, uid) {
         val id = uid ?: return@LaunchedEffect
         if (!backfilled && baselineKwh == null && currentEstimateKwh > 0.0) {
             backfilled = true
-            val payload = mapOf("kwh" to currentEstimateKwh, "ts" to System.currentTimeMillis())
             db.collection("users").document(id)
                 .collection("metrics").document("lastEstimate")
-                .set(payload)
-                .addOnSuccessListener { Log.d("EcoTrack", "Baseline backfilled with $currentEstimateKwh") }
-                .addOnFailureListener { e -> Log.w("EcoTrack", "Backfill failed", e) }
+                .set(mapOf("kwh" to currentEstimateKwh, "ts" to System.currentTimeMillis()))
         }
     }
 
-    // Save baseline right before navigating (spike dialog confirm)
     fun saveBaselineAndNavigate() {
         val id = uid ?: return onGoToElectricity()
-        val payload = mapOf("kwh" to currentEstimateKwh, "ts" to System.currentTimeMillis())
         db.collection("users").document(id)
             .collection("metrics").document("lastEstimate")
-            .set(payload)
-            .addOnSuccessListener { Log.d("EcoTrack", "Baseline saved before navigate") }
+            .set(mapOf("kwh" to currentEstimateKwh, "ts" to System.currentTimeMillis()))
             .addOnCompleteListener { onGoToElectricity() }
     }
     // -------------------------------------------------------------------------
@@ -248,6 +277,7 @@ fun EcoTrackScreen(
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                val sc = MaterialTheme.colorScheme
                 modes.forEach { mode ->
                     FilterChip(
                         modifier = Modifier
@@ -257,8 +287,8 @@ fun EcoTrackScreen(
                         onClick = { selectedMode = mode },
                         label = { Text("${modeNames[mode]}", color = Color.Black) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(MaterialTheme.colorScheme.surface.toArgb()),
-                            containerColor = Color(MaterialTheme.colorScheme.surfaceVariant.toArgb())
+                            selectedContainerColor = Color(sc.surface.toArgb()),
+                            containerColor = Color(sc.surfaceVariant.toArgb())
                         )
                     )
                 }
@@ -276,18 +306,17 @@ fun EcoTrackScreen(
             )
         }
 
-        // Spike dialog – save baseline before we jump to Appliances
         item {
             OverusePrompt(
                 visible = showOveruse,
                 currentKw = latestKw,
                 onDismiss = { showOveruse = false },
                 onBeforeNavigate = { saveBaselineAndNavigate() },
-                onGoToElectricity = { /* handled above */ }
+                onGoToElectricity = { /* unused here */ }
             )
         }
 
-        // KPIs (explicit “Estimated” label)
+        // Estimated KPIs
         item {
             Text(
                 "Estimated (from appliances)",
@@ -304,6 +333,15 @@ fun EcoTrackScreen(
                 KpiCard(value = kpiVsLast, label = "vs Last estimate", modifier = Modifier.weight(1f))
                 KpiCard(value = kpiCost, label = "Cost Today", modifier = Modifier.weight(1f))
             }
+        }
+
+        // Rewards teaser (Open button: dark blue bg + white text)
+        item {
+            RewardsTeaserCard(
+                points = pendingPoints,
+                badges = pendingBadges,
+                onOpenRewards = onOpenRewards
+            )
         }
 
         item {
@@ -406,6 +444,67 @@ private fun KpiCard(value: String, label: String, modifier: Modifier = Modifier)
     }
 }
 
+/** Rewards CTA card — Open button dark blue bg + white text */
+@Composable
+private fun RewardsTeaserCard(
+    points: Int,
+    badges: Int,
+    onOpenRewards: () -> Unit
+) {
+    val hasSomething = points > 0 || badges > 0
+    val title = if (hasSomething) "You’ve got rewards waiting" else "Check your rewards"
+    val subtitle = if (hasSomething) {
+        buildString {
+            if (points > 0) append("$points pts")
+            if (points > 0 && badges > 0) append(" • ")
+            if (badges > 0) append("$badges badge${if (badges > 1) "s" else ""}")
+            if (isEmpty()) append("See what you’ve earned")
+        }
+    } else {
+        "See your points, badges and progress"
+    }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    subtitle,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f)
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Button(
+                onClick = onOpenRewards,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF1E3A8A), // dark blue
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("Open")
+            }
+        }
+    }
+}
+
 @Composable
 private fun UsageVsAverageCard(
     yourLabel: String,
@@ -494,7 +593,7 @@ fun LineChartScreen(
                     description.isEnabled = false
                     xAxis.position = XAxis.XAxisPosition.BOTTOM
                     xAxis.setDrawLabels(false)
-                    animateY(4000)
+                    animateY(400)
                     axisLeft.axisMinimum = 0f
                     axisLeft.axisMaximum = 4f
                 }
