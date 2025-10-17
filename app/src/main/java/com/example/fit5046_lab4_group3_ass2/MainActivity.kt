@@ -221,5 +221,21 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                 onTabSelected = ::onTab
             )
         }
+
+        composable(ROUTE_PROFILE) {
+            ProfileRoute(
+                onBack = { nav.popBackStack() },
+                onNotifications = { /* optional */ },
+                onEditProfile = { nav.navigate("profile_setup") },
+                onLogout = {
+                    // After signOut (done in ProfileRoute), go to login and clear stack
+                    nav.navigate("login") {
+                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onTabSelected = ::onTab
+            )
+        }
     }
 }
