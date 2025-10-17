@@ -1,8 +1,6 @@
 package com.example.fit5046_lab4_group3_ass2.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -10,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -20,6 +19,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,8 +36,19 @@ import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.EcoTrackScreenViewModel
 import com.example.fit5046_lab4_group3_ass2.Quad
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import kotlin.math.max
 
-/* ROUTE_* constants now come from EcoBottomBar.kt */
+/* ROUTE_* constants come from EcoBottomBar.kt */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,17 +56,11 @@ fun HomePageScaffold(
     viewModel: EcoTrackScreenViewModel,
     // Which tab should appear selected in the bar
     currentRoute: String = ROUTE_HOME,
-
-    // Bottom bar navigation
     onTabSelected: (route: String) -> Unit = {},
-
-    // Quick actions
     onAddAppliance: () -> Unit = {},
     onOpenEcoTrack: () -> Unit = {},
     onViewTips: () -> Unit = {},
     onViewRewards: () -> Unit = {},
-
-    // Optional top-right action
     onNotificationsClick: () -> Unit = {}
 ) {
     Scaffold(
@@ -113,6 +120,13 @@ private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+/** Small util for pretty numbers like 2,450 */
+private fun fmtInt(i: Int): String = NumberFormat.getIntegerInstance().format(i)
+private fun fmtKwh(v: Double): String = String.format(Locale.getDefault(), "%.1f kWh", v)
+private fun pctText(deltaPct: Double?): String =
+    deltaPct?.let { (if (it >= 0) "+" else "") + String.format(Locale.getDefault(), "%.0f%%", it) } ?: ""
+
+/** Same card renderer you already had */
 @Composable
 private fun HomeScreenCard(
     modifier: Modifier = Modifier,
@@ -194,7 +208,7 @@ private fun HomeScreenCard(
 
 @Composable
 private fun QuickActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
@@ -266,6 +280,106 @@ private fun Home(
     var selectedMode by remember { mutableStateOf(1f) }
     val modes = listOf(0.25f, 1f, 7f, 30f)
     val mode_names = mapOf(0.25f to "6 hours", 1f to "1 day", 7f to "Week", 30f to "Month")
+    // Firebase handles
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+    val uid = auth.currentUser?.uid
+
+    // EcoPoints total (same as Rewards page: sum of users/{uid}/rewards points)
+    var ecoPoints by remember { mutableStateOf<Int?>(null) }
+
+    // Electricity today (same as EcoTrack estimation from appliances)
+    var todayKwh by remember { mutableStateOf<Double?>(null) }
+
+    // % vs last estimate (from metrics/lastEstimate.kwh)
+    var deltaPct by remember { mutableStateOf<Double?>(null) }
+
+    // Small loading states
+    var isLoadingRewards by remember { mutableStateOf(true) }
+    var isLoadingElectric by remember { mutableStateOf(true) }
+
+    /* -------- Listen to rewards to compute EcoPoints total -------- */
+    DisposableEffect(uid) {
+        if (uid == null) return@DisposableEffect onDispose { }
+        val reg: ListenerRegistration =
+            db.collection("users").document(uid).collection("rewards")
+                .addSnapshotListener { snap, e ->
+                    if (e != null) {
+                        isLoadingRewards = false
+                        return@addSnapshotListener
+                    }
+                    val total = snap?.documents?.sumOf { (it.getLong("points") ?: 0L).toInt() } ?: 0
+                    ecoPoints = total
+                    isLoadingRewards = false
+                }
+        onDispose { reg.remove() }
+    }
+
+    /* -------- Read appliances to estimate today's kWh (same as EcoTrack) ---- */
+    // And read metrics/lastEstimate to compute % change and a progress fraction
+    LaunchedEffect(uid) {
+        if (uid == null) return@LaunchedEffect
+        // 1) appliances → sum(watt * hours / 1000)
+        db.collection("users").document(uid).collection("appliances")
+            .get()
+            .addOnSuccessListener { docs ->
+                var sum = 0.0
+                docs.forEach { d ->
+                    val watt = (d.getLong("watt") ?: 0L).toInt()
+                    val hours = (d.getDouble("hours") ?: 0.0)
+                    sum += max(0.0, watt * hours / 1000.0)
+                }
+                todayKwh = sum
+                isLoadingElectric = false
+            }
+            .addOnFailureListener { isLoadingElectric = false }
+
+        // 2) baseline for delta %
+        db.collection("users").document(uid)
+            .collection("metrics").document("lastEstimate")
+            .get()
+            .addOnSuccessListener { d ->
+                val base = d.getDouble("kwh")
+                val cur = todayKwh
+                if (base != null && base > 0 && cur != null) {
+                    deltaPct = ((cur - base) / base) * 100.0
+                } else {
+                    deltaPct = null
+                }
+            }
+    }
+
+    /* --------- UI ----------------------------------------------------------- */
+
+    val pointsText = when {
+        isLoadingRewards -> "—"
+        ecoPoints == null -> "0"
+        else -> fmtInt(ecoPoints!!)
+    }
+
+    val kwhText = when {
+        isLoadingElectric -> "—"
+        todayKwh == null -> "0.0 kWh"
+        else -> fmtKwh(todayKwh!!)
+    }
+
+    // Progress bar for the electricity card: compare to baseline if present,
+    // otherwise show no bar.
+    val progressFraction: Float = run {
+        val cur = todayKwh
+        var base: Double? = null
+        // We can't block; recompute base quickly from delta if available:
+        if (cur != null && deltaPct != null && deltaPct!!.isFinite()) {
+            // deltaPct = (cur - base) / base  => base = cur / (1 + deltaPct)
+            val denom = 1.0 + (deltaPct!! / 100.0)
+            if (denom != 0.0) base = cur / denom
+        }
+        if (cur != null && base != null && base!! > 0.0) {
+            (cur / max(cur, base!!)).toFloat().coerceIn(0f, 1f)
+        } else 0f
+    }
+
+    val rightDeltaText = pctText(deltaPct)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -289,20 +403,23 @@ private fun Home(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                // EcoPoints – shows the SAME total as Rewards
                 HomeScreenCard(
                     title = "EcoPoints",
-                    mainText = "2,450",
-                    smallText = "🔥 7-day streak",
+                    mainText = pointsText,
+                    smallText = "Your total points",
                     rightText = "\uD83C\uDFC6",
                     tonal = true,
                     valueStyle = MaterialTheme.typography.displaySmall
                 )
+
+                // Electricity – shows the SAME 'today estimate' as EcoTrack
                 HomeScreenCard(
                     title = "⚡ Electricity",
-                    mainText = "8.4 kWh",
+                    mainText = kwhText,
                     smallText = "Today's usage",
-                    progress = 0.8f,
-                    rightText = "-12%",
+                    progress = progressFraction,
+                    rightText = rightDeltaText,
                     tonal = true,
                     valueStyle = MaterialTheme.typography.titleMedium
                 )
@@ -317,7 +434,7 @@ private fun Home(
                         onClick = onAddAppliance
                     )
                     QuickActionButton(
-                        icon = androidx.compose.material.icons.Icons.Filled.Info,
+                        icon = Icons.Filled.Info,
                         label = "Open EcoTrack",
                         modifier = Modifier.weight(1f),
                         onClick = onOpenEcoTrack
@@ -334,7 +451,7 @@ private fun Home(
                         onClick = onViewTips
                     )
                     QuickActionButton(
-                        icon = androidx.compose.material.icons.Icons.Filled.Star,
+                        icon = Icons.Filled.Star,
                         label = "View Rewards",
                         modifier = Modifier.weight(1f),
                         onClick = onViewRewards

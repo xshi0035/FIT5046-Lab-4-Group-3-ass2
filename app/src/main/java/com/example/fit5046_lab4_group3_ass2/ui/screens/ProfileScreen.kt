@@ -40,6 +40,7 @@ fun ProfileRoute(
     onBack: () -> Unit = {},
     onNotifications: () -> Unit = {},
     onEditProfile: () -> Unit = {},
+    onLogout: () -> Unit = {},                      // NEW: callback to AppNav
     // NAV for bottom bar from Profile
     onTabSelected: (route: String) -> Unit = {}
 ) {
@@ -162,6 +163,12 @@ fun ProfileRoute(
     val electricityReminders = profile?.energyTips ?: true
     val avatarEmoji = profile?.avatar ?: "🌳"
 
+    // Perform sign-out here, then bubble to AppNav for navigation
+    val performLogout = {
+        auth.signOut()
+        onLogout()
+    }
+
     ProfileScreen(
         name = name,
         email = email,
@@ -175,6 +182,7 @@ fun ProfileRoute(
         onNotifications = onNotifications,
         onEditProfile = onEditProfile,
         onToggleElectricity = ::updateElectricityReminders,
+        onLogout = performLogout,                   // NEW
         ecoPoints = 0,
         // NAV
         currentRoute = ROUTE_PROFILE,
@@ -211,6 +219,7 @@ fun ProfileScreen(
     onTapFaq: () -> Unit = {},
     onTapContact: () -> Unit = {},
     onTapAbout: () -> Unit = {},
+    onLogout: () -> Unit = {},                     // NEW
 
     // Stats
     ecoPoints: Int,
@@ -268,6 +277,7 @@ fun ProfileScreen(
             onTapFaq = onTapFaq,
             onTapContact = onTapContact,
             onTapAbout = onTapAbout,
+            onLogout = onLogout,                    // NEW
             ecoPoints = ecoPoints,
             modifier = Modifier
                 .fillMaxSize()
@@ -296,6 +306,7 @@ private fun ProfileContent(
     onTapFaq: () -> Unit,
     onTapContact: () -> Unit,
     onTapAbout: () -> Unit,
+    onLogout: () -> Unit,                          // NEW
     ecoPoints: Int,
     modifier: Modifier = Modifier
 ) {
@@ -365,6 +376,23 @@ private fun ProfileContent(
                     .height(48.dp)
             ) {
                 Text(if (isEmptyProfile) "Set Up Profile" else "Edit Profile", fontSize = 16.sp)
+            }
+        }
+
+        // 🔴 Solid red Log out button just under Edit Profile
+        item {
+            Button(
+                onClick = onLogout,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                )
+            ) {
+                Text("Log out", fontSize = 16.sp)
             }
         }
 
@@ -518,6 +546,7 @@ fun Preview_Profile_Filled() {
             electricityReminders = electricity,
             themeLabel = "Light",
             onToggleElectricity = { electricity = it },
+            onLogout = {},
             ecoPoints = 2847
         )
     }
@@ -539,6 +568,7 @@ fun Preview_Profile_Empty() {
             electricityReminders = electricity,
             themeLabel = "System",
             onToggleElectricity = { electricity = it },
+            onLogout = {},
             ecoPoints = 0
         )
     }
