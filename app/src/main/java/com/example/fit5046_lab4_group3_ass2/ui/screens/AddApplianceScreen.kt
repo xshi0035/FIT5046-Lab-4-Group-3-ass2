@@ -40,7 +40,7 @@ fun AddApplianceScaffold(
     applianceId: String? = null, // null = add new, non-null = edit existing
     onBack: () -> Unit = {},
     onSave: (name: String, watt: Int, hours: Float, category: String) -> Unit = { _,_,_,_ -> },
-    onCancel: () -> Unit = {},
+    onCancel: () -> Unit = {},   // optional side-effect, navigation handled here
     // NAV
     currentRoute: String = ROUTE_APPLIANCES,
     onTabSelected: (route: String) -> Unit = {}
@@ -68,26 +68,24 @@ fun AddApplianceScaffold(
         val col = db.collection("users").document(uid).collection("appliances")
 
         val task = if (applianceId == null) {
-            // create new
             col.add(data + ("createdAt" to FieldValue.serverTimestamp()))
         } else {
-            // update existing
             col.document(applianceId).set(data, com.google.firebase.firestore.SetOptions.merge())
         }
 
         task.addOnSuccessListener {
-            scope.launch {
-                snackbarHost.showSnackbar(
-                    if (applianceId == null) "Appliance saved" else "Changes saved"
-                )
-            }
+            scope.launch { snackbarHost.showSnackbar(if (applianceId == null) "Appliance saved" else "Changes saved") }
             onSave(name, watt, hours, category)
-            onBack()
+            onBack() // go back to Appliances page
         }.addOnFailureListener { e ->
-            scope.launch {
-                snackbarHost.showSnackbar(e.localizedMessage ?: "Failed to save appliance")
-            }
+            scope.launch { snackbarHost.showSnackbar(e.localizedMessage ?: "Failed to save appliance") }
         }
+    }
+
+    // One place to define cancel behavior: do any optional side-effect, then navigate back
+    val handleCancel = {
+        onCancel()
+        onBack()   // pop back to Electricity (Appliances) page
     }
 
     Scaffold(
@@ -100,7 +98,6 @@ fun AddApplianceScaffold(
                     }
                 },
                 actions = {
-                    // bell + unread dot (matches other screens)
                     Box {
                         IconButton(onClick = { /* UI only */ }) {
                             Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
@@ -128,11 +125,11 @@ fun AddApplianceScaffold(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
-                .imePadding() // when keyboard shows, keep content visible
+                .imePadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             applianceId = applianceId,
             onSave = ::saveToFirestore,
-            onCancel = onCancel
+            onCancel = handleCancel          // ← use the unified handler
         )
     }
 }
@@ -180,23 +177,19 @@ private fun AddApplianceContent(
     val watt = wattText.filter { it.isDigit() }.take(5).toIntOrNull() ?: 0
     val saveEnabled = name.isNotBlank() && watt > 0 && category.isNotBlank() && !loading
 
-    // >>> Scrollable list
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(bottom = 96.dp) // leave room above bottom bar
+        contentPadding = PaddingValues(bottom = 96.dp)
     ) {
-        // Intro / banner
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text(
-                        if (applianceId == null) "Appliance Details" else "Edit Appliance",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text(if (applianceId == null) "Appliance Details" else "Edit Appliance",
+                        style = MaterialTheme.typography.titleMedium)
                     Text(
                         "Fill in the fields below. Name and category are required.",
                         style = MaterialTheme.typography.bodySmall,
@@ -206,7 +199,6 @@ private fun AddApplianceContent(
             }
         }
 
-        // Basic Info
         item {
             SectionCard(title = "Basic Info") {
                 OutlinedTextField(
@@ -229,7 +221,6 @@ private fun AddApplianceContent(
                     singleLine = true,
                     enabled = !loading,
                     trailingIcon = {
-                        // keep this compact and single-line
                         Text("W", style = MaterialTheme.typography.bodySmall, softWrap = false, maxLines = 1)
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -253,7 +244,6 @@ private fun AddApplianceContent(
             }
         }
 
-        // Usage slider
         item {
             SectionCard(title = "Usage") {
                 Text("Hours used per day", style = MaterialTheme.typography.bodyMedium)
@@ -262,9 +252,10 @@ private fun AddApplianceContent(
             }
         }
 
-        // Category
         item {
             SectionCard(title = "Category") {
+                var catExpanded by remember { mutableStateOf(false) }
+                val categories = listOf("Cooling & Heating", "Kitchen", "Entertainment", "Lighting", "Cleaning", "Other")
                 ExposedDropdownMenuBox(
                     expanded = catExpanded,
                     onExpandedChange = { if (!loading) catExpanded = it }
@@ -298,18 +289,14 @@ private fun AddApplianceContent(
             }
         }
 
-        // Estimation
         item { EstimateCard(watt = watt, hours = hours) }
 
-        // Actions
         item {
             Row(Modifier.fillMaxWidth()) {
                 OutlinedButton(
-                    onClick = onCancel,
+                    onClick = onCancel,              // ← this now navigates back
                     enabled = !loading,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
+                    modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) { Text("Cancel") }
 
@@ -318,9 +305,7 @@ private fun AddApplianceContent(
                 Button(
                     onClick = { onSave(name.trim(), watt, hours, category) },
                     enabled = saveEnabled,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
+                    modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) { Text(if (applianceId == null) "Save Appliance" else "Save Changes") }
             }
@@ -377,21 +362,13 @@ private fun HoursSlider(
 private fun EstimateCard(watt: Int, hours: Float) {
     val kWh = (watt * hours / 1000f).coerceAtLeast(0f)
     val cost = kWh * 0.30f
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp)
-    ) {
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
         Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("Estimated daily energy", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                String.format(Locale.getDefault(), "%.2f kWh  (~$%.2f)", kWh, cost),
-                fontWeight = FontWeight.Medium
-            )
+            Text(String.format(Locale.getDefault(), "%.2f kWh  (~$%.2f)", kWh, cost), fontWeight = FontWeight.Medium)
         }
     }
 }
