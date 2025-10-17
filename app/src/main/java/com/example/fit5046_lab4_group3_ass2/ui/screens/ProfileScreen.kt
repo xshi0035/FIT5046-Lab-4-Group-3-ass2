@@ -50,6 +50,9 @@ fun ProfileRoute(
     var loading by remember { mutableStateOf(true) }
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    
+    // Screen state management
+    var currentScreen by remember { mutableStateOf("profile") }
 
     // Fetch profile on first composition
     LaunchedEffect(Unit) {
@@ -163,6 +166,49 @@ fun ProfileRoute(
     val electricityReminders = profile?.energyTips ?: true
     val avatarEmoji = profile?.avatar ?: "🌳"
 
+    // Handle screen navigation
+    when (currentScreen) {
+        "privacy" -> {
+            PrivacyScreen(
+                onBack = { currentScreen = "profile" },
+                onNotifications = onNotifications
+            )
+        }
+        "help_support" -> {
+            HelpSupportScreen(
+                onBack = { currentScreen = "profile" },
+                onNotifications = onNotifications
+            )
+        }
+        "faq" -> {
+            FAQScreen(
+                onBack = { currentScreen = "profile" },
+                onNotifications = onNotifications
+            )
+        }
+        else -> {
+            ProfileScreen(
+                name = name,
+                email = email,
+                memberSince = memberSince,
+                avatarEmoji = avatarEmoji,
+                householdSize = householdSize,
+                location = location,
+                electricityReminders = electricityReminders,
+                onBack = onBack,
+                onNotifications = onNotifications,
+                onEditProfile = onEditProfile,
+                onToggleElectricity = ::updateElectricityReminders,
+                onTapPrivacy = { currentScreen = "privacy" },
+                onTapFaq = { currentScreen = "faq" },
+                onTapContact = { currentScreen = "help_support" },
+                ecoPoints = 0,
+                // NAV
+                currentRoute = ROUTE_PROFILE,
+                onTabSelected = onTabSelected
+            )
+        }
+    }
     // Perform sign-out here, then bubble to AppNav for navigation
     val performLogout = {
         auth.signOut()
@@ -207,14 +253,12 @@ fun ProfileScreen(
 
     // Settings
     electricityReminders: Boolean,
-    themeLabel: String,
 
     // Actions
     onBack: () -> Unit = {},
     onNotifications: () -> Unit = {},
     onEditProfile: () -> Unit = {},
     onToggleElectricity: (Boolean) -> Unit = {},
-    onTapTheme: () -> Unit = {},
     onTapPrivacy: () -> Unit = {},
     onTapFaq: () -> Unit = {},
     onTapContact: () -> Unit = {},
@@ -269,10 +313,8 @@ fun ProfileScreen(
             location = location,
             focus = focus,
             electricityReminders = electricityReminders,
-            themeLabel = themeLabel,
             onEditProfile = onEditProfile,
             onToggleElectricity = onToggleElectricity,
-            onTapTheme = onTapTheme,
             onTapPrivacy = onTapPrivacy,
             onTapFaq = onTapFaq,
             onTapContact = onTapContact,
@@ -298,10 +340,8 @@ private fun ProfileContent(
     location: String,
     focus: String,
     electricityReminders: Boolean,
-    themeLabel: String,
     onEditProfile: () -> Unit,
     onToggleElectricity: (Boolean) -> Unit,
-    onTapTheme: () -> Unit,
     onTapPrivacy: () -> Unit,
     onTapFaq: () -> Unit,
     onTapContact: () -> Unit,
@@ -406,12 +446,12 @@ private fun ProfileContent(
             )
         }
         item { Divider() }
-        item { SettingChevronRow(title = "Theme", value = themeLabel, onClick = onTapTheme) }
-        item { Divider() }
         item { SettingChevronRow(title = "Privacy & Data Sharing", onClick = onTapPrivacy) }
+        item { Divider() }
 
         // Help & Support
-        item { SectionHeader("Help & Support") }
+        item { SettingChevronRow("Help & Support", onClick = onTapContact) }
+        item { Divider() }
         item { SettingChevronRow("FAQs", onClick = onTapFaq) }
         item { Divider() }
         item { SettingChevronRow("Contact Support", onClick = onTapContact) }
@@ -544,7 +584,6 @@ fun Preview_Profile_Filled() {
             location = "VIC",
             focus = "Electricity",
             electricityReminders = electricity,
-            themeLabel = "Light",
             onToggleElectricity = { electricity = it },
             onLogout = {},
             ecoPoints = 2847
@@ -566,7 +605,6 @@ fun Preview_Profile_Empty() {
             location = "",
             focus = "Electricity",
             electricityReminders = electricity,
-            themeLabel = "System",
             onToggleElectricity = { electricity = it },
             onLogout = {},
             ecoPoints = 0
