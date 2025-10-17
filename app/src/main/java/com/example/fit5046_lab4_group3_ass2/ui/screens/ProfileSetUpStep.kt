@@ -32,6 +32,7 @@ import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -71,9 +72,7 @@ fun ProfileScaffold(
     LaunchedEffect(Unit) {
         loading = true
         ProfileRepo.get { res ->
-            res.onSuccess { maybe ->
-                // maybe: UserProfile?  (handle safely)
-                val p = maybe
+            res.onSuccess { p ->
                 if (p != null) {
                     if (p.name.isNotBlank()) name = p.name
                     email = if (p.email.isNotBlank()) p.email else auth.currentUser?.email.orEmpty()
@@ -90,7 +89,6 @@ fun ProfileScaffold(
                     dashboardName = p.dashboardName.orEmpty()
                     if (p.avatar.isNotBlank()) avatar = p.avatar
                 } else {
-                    // No existing doc; at least prefill email if logged in
                     email = auth.currentUser?.email.orEmpty()
                 }
             }.onFailure { e ->
@@ -101,9 +99,27 @@ fun ProfileScaffold(
         }
     }
 
-    fun handleBack() {
-        if (step > 1) step-- else onBack()
+    // 18+ check (used on Next & Save)
+    fun ensureAdultOrWarn(): Boolean {
+        val age = dob.toAgeYears()
+        return when {
+            dob.isBlank() -> {
+                scope.launch { snackbarHost.showSnackbar("Please pick your date of birth.") }
+                false
+            }
+            age == null -> {
+                scope.launch { snackbarHost.showSnackbar("Invalid date format. Use yyyy-MM-dd.") }
+                false
+            }
+            age < 18 -> {
+                scope.launch { snackbarHost.showSnackbar("You must be at least 18 years old to continue.") }
+                false
+            }
+            else -> true
+        }
     }
+
+    fun handleBack() { if (step > 1) step-- else onBack() }
 
     Scaffold(
         topBar = {
@@ -164,16 +180,28 @@ fun ProfileScaffold(
                     dashboardName = dashboardName, onDashboardName = { dashboardName = it },
                     avatar = avatar, onAvatar = { avatar = it },
 
+                    // Back: Step 2 -> Step 1, Step 1 -> Profile
                     onStepPrev = { handleBack() },
-                    onStepNext = { if (step < 2) step++ },
+
+                    // Next (Step 1): block if < 18
+                    onStepNext = {
+                        if (step < 2) {
+                            if (ensureAdultOrWarn()) step++
+                        }
+                    },
+
                     onStepJump = { s -> step = s.coerceIn(1, 2) },
 
                     onSave = {
+                        // Basic required fields
                         val hh = householdSize.toIntOrNull()
                         if (name.isBlank() || email.isBlank() || hh == null || hh <= 0) {
                             scope.launch { snackbarHost.showSnackbar("Please fill all required fields.") }
                             return@ProfileSetup
                         }
+                        // Age gate
+                        if (!ensureAdultOrWarn()) return@ProfileSetup
+
                         saving = true
                         val payload = UserProfile(
                             name = name.trim(),
@@ -240,7 +268,7 @@ private fun SmallText(text: String) {
 /** Step chips + progress bar */
 @Composable
 private fun SetupProgress(
-    step: Int,           // 1..2
+    step: Int,
     total: Int = 2,
     onStepClick: (Int) -> Unit
 ) {
@@ -248,7 +276,6 @@ private fun SetupProgress(
     val sel = MaterialTheme.colorScheme.surface
 
     Column(Modifier.fillMaxWidth()) {
-        // Chips
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -328,6 +355,10 @@ private fun ProfileSetup(
     saving: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // Compute age for helper text under DOB
+    val ageYears = remember(dob) { dob.toAgeYears() }
+    val under18 = ageYears != null && ageYears < 18
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
@@ -354,6 +385,27 @@ private fun ProfileSetup(
                     )
                     Spacer(Modifier.height(12.dp))
                     DisplayDatePicker(value = dob, onPicked = onDob)
+                    if (dob.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        val helper = when (ageYears) {
+                            null -> "Invalid date (use yyyy-MM-dd)."
+                            else -> "Age: $ageYears"
+                        }
+                        Text(
+                            helper,
+                            color = if (under18) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        if (under18) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "You must be 18+ to continue.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
                 }
             }
 
@@ -623,6 +675,26 @@ private fun StateMenu(value: String, onValueChange: (String) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/* ------------------------------ UTIL --------------------------------- */
+
+private fun String.toAgeYears(): Int? {
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        sdf.isLenient = false
+        val dob = sdf.parse(this) ?: return null
+        val dobCal = Calendar.getInstance().apply { time = dob }
+        val now = Calendar.getInstance()
+        var age = now.get(Calendar.YEAR) - dobCal.get(Calendar.YEAR)
+        // adjust if birthday hasn’t occurred yet this year
+        if (now.get(Calendar.DAY_OF_YEAR) < dobCal.get(Calendar.DAY_OF_YEAR)) {
+            age--
+        }
+        age
+    } catch (_: Exception) {
+        null
     }
 }
 
