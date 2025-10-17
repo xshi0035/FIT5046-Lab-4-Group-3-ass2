@@ -408,34 +408,6 @@ private fun ProfileContent(
         item { HorizontalDivider() }
         item { SettingChevronRow("FAQs", onClick = onTapFaq) }
         item { HorizontalDivider() }
-        item { SettingChevronRow("Contact Support", onClick = onTapContact) }
-
-        // About
-        item { SectionHeader("About App") }
-        item { SettingChevronRow(title = "Learn about UN SDG Goals", onClick = onTapAbout) }
-
-        // Impact Summary
-        item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Your Impact Summary", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "%,d".format(ecoPoints),
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                    Text(
-                        "EcoPoints Earned",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
         item { Spacer(Modifier.height(16.dp)) }
     }
 }
