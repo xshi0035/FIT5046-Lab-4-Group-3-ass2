@@ -186,6 +186,9 @@ private fun RewardsScreenFirestore(
     var weeklyCollected by remember { mutableStateOf(false) }
     var weeklyStreak by remember { mutableStateOf(0) } // 0..7
 
+    // NEW: remember when we last reset the weekly cycle (yyyyMMdd)
+    var streakResetDayKey by remember { mutableStateOf<String?>(null) }
+
     /* -------- Helpers for date keys & re-deriving flags -------- */
     fun dayKeyOf(date: Date = Date()): String =
         SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(date)
@@ -258,8 +261,24 @@ private fun RewardsScreenFirestore(
                         .map { it.taskId }
                         .toSet()
 
-                    // weekly collected (streak reward)
-                    weeklyCollected = list.any { it.key == "weekly_streak_${weekKeyOf(c.time)}" }
+                    // ——— NEW: track latest reset, and gate the "Collected" flag with it
+                    val currentWeekKey = weekKeyOf(c.time)
+
+                    val latestWeekly = list
+                        .filter { it.taskId == "weekly_streak" && it.key == "weekly_streak_${currentWeekKey}" }
+                        .maxByOrNull { it.timestamp }
+
+                    val latestReset = list
+                        .filter { it.taskId == "weekly_reset" && it.key.startsWith("weekly_reset_") }
+                        .maxByOrNull { it.timestamp }
+
+                    streakResetDayKey = latestReset?.key?.removePrefix("weekly_reset_")
+
+                    weeklyCollected = when {
+                        latestWeekly == null -> false
+                        latestReset == null -> true
+                        else -> latestWeekly.timestamp > latestReset.timestamp
+                    }
                 }
 
         onDispose { reg.remove() }
@@ -268,7 +287,6 @@ private fun RewardsScreenFirestore(
     /* -------- LIVE midnight watcher: auto-refresh daily flags -------- */
     var lastSeenDayKey by remember { mutableStateOf(dayKeyOf()) }
     LaunchedEffect(entries) {
-        // whenever entries change, sync flags for the current day
         val k = dayKeyOf()
         lastSeenDayKey = k
         recomputeDailyFlagsFor(k, entries)
@@ -279,7 +297,6 @@ private fun RewardsScreenFirestore(
             val currentKey = dayKeyOf()
             if (currentKey != lastSeenDayKey) {
                 lastSeenDayKey = currentKey
-                // New day → recompute against same entries; all daily items refresh
                 recomputeDailyFlagsFor(currentKey, entries)
             }
         }
@@ -287,12 +304,12 @@ private fun RewardsScreenFirestore(
 
     /* -------- LIVE streak computation (savingsLog + optional dailyUsage) -------- */
 
-    fun last7Ids(from: Date = Date()): Set<String> {
+    fun last7Ids(from: Date = Date()): List<String> {
         val now = Calendar.getInstance().apply { time = from }
         return (0..6).map {
             val c = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -it) }
             SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(c.time)
-        }.toSet()
+        }
     }
 
     fun docSavedPct(doc: Map<String, Any?>): Double? {
@@ -313,11 +330,17 @@ private fun RewardsScreenFirestore(
     }
 
     fun recomputeStreak(vararg snapshots: QuerySnapshot?) {
-        val wanted = last7Ids()
+        // Build the last 7 calendar days, then ignore any day before the last reset
+        val recentIds = last7Ids()
+        val effectiveIds = streakResetDayKey?.let { reset ->
+            recentIds.filter { it >= reset }  // yyyyMMdd is lexicographically sortable
+        } ?: recentIds
+
         var count = 0
         snapshots.filterNotNull().forEach { snap ->
             snap.documents.forEach { d ->
-                if (d.id in wanted) {
+                val id = d.id
+                if (id in effectiveIds) {
                     val pct = docSavedPct(d.data ?: emptyMap())
                     if (pct != null && pct <= -1.0) count += 1
                 }
@@ -468,7 +491,28 @@ private fun RewardsScreenFirestore(
                     db.collection("users").document(u).collection("rewards").document(doc)
                         .set(data)
                         .addOnSuccessListener {
-                            scope.launch { snackbar.showSnackbar("Nice! +$points points for your 7-day streak!") }
+                            // —— NEW: write a reset marker + reset UI immediately
+                            val todayKey = dayKeyOf()
+                            val resetDocId = "weekly_reset_${todayKey}"
+                            val resetData = mapOf(
+                                "taskId" to "weekly_reset",
+                                "taskTitle" to "Reset weekly streak",
+                                "points" to 0,
+                                "timestamp" to FieldValue.serverTimestamp(),
+                                "periodKey" to todayKey
+                            )
+                            db.collection("users").document(u)
+                                .collection("rewards").document(resetDocId)
+                                .set(resetData)
+                                .addOnCompleteListener {
+                                    // UI reset right away
+                                    streakResetDayKey = todayKey
+                                    weeklyStreak = 0
+                                    weeklyCollected = false
+                                    scope.launch {
+                                        snackbar.showSnackbar("Nice! +$points points. Streak restarted.")
+                                    }
+                                }
                         }
                         .addOnFailureListener { e ->
                             scope.launch { snackbar.showSnackbar(e.localizedMessage ?: "Failed to collect") }
@@ -617,7 +661,7 @@ private fun RewardsScreenFirestore(
             }
         }
 
-        // Earn more points (unchanged)
+        // Earn more points
         item {
             SectionCard(
                 title = "Earn More Points",
@@ -661,7 +705,7 @@ private fun RewardsScreenFirestore(
             }
         }
 
-        // Monthly Progress (kept)
+        // Monthly Progress
         item {
             SectionCard(
                 title = "Monthly Progress",
