@@ -29,11 +29,16 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.utils.ColorTemplate
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 
@@ -107,7 +112,7 @@ fun EcoTrackScaffold(
                 kpiVsYesterdayText = kpiVsYesterdayText,
                 kpiCostTodayText = kpiCostTodayText,
                 onGoToElectricity = onGoToElectricity,
-                onOpenRewards = { onTabSelected(ROUTE_REWARDS) } // <— open Rewards
+                onOpenRewards = { onTabSelected(ROUTE_REWARDS) }
             )
         }
     }
@@ -128,7 +133,7 @@ fun EcoTrackScreen(
     kpiVsYesterdayText: String = "-12%",
     kpiCostTodayText: String = "$2.46",
     onGoToElectricity: () -> Unit = {},
-    onOpenRewards: () -> Unit = {}   // <— new callback
+    onOpenRewards: () -> Unit = {}
 ) {
     val severity = when {
         rrpAudPerMwh > 200f -> PriceSeverity.Severe
@@ -157,11 +162,10 @@ fun EcoTrackScreen(
     var baselineKwh by remember { mutableStateOf<Double?>(null) }
     var backfilled by remember { mutableStateOf(false) }
 
-    // optional counters for teaser
     var pendingPoints by remember { mutableStateOf(0) }
     var pendingBadges by remember { mutableStateOf(0) }
 
-    // 1) Read appliances and compute current estimate
+    // 1) Read appliances -> current estimate
     LaunchedEffect(uid) {
         if (uid == null) return@LaunchedEffect
         db.collection("users").document(uid).collection("appliances")
@@ -181,7 +185,6 @@ fun EcoTrackScreen(
             }
             .addOnFailureListener { e -> Log.w("EcoTrack", "Failed to read appliances", e) }
 
-        // pending rewards (safe defaults if missing)
         db.collection("users").document(uid)
             .collection("metrics").document("pendingRewards")
             .get()
@@ -191,7 +194,7 @@ fun EcoTrackScreen(
             }
     }
 
-    // 2) Listen to baseline doc
+    // 2) Listen to baseline (metrics/lastEstimate)
     DisposableEffect(uid) {
         var reg: ListenerRegistration? = null
         if (uid != null) {
@@ -204,15 +207,39 @@ fun EcoTrackScreen(
         onDispose { reg?.remove() }
     }
 
-    // 3) Compute % vs baseline
-    LaunchedEffect(currentEstimateKwh, baselineKwh) {
-        baselineKwh?.let { base ->
-            kpiVsLast = if (base > 0.0) {
-                val pct = ((currentEstimateKwh - base) / base) * 100.0
-                val sign = if (pct >= 0) "+" else ""
-                String.format(Locale.getDefault(), "%s%.0f%%", sign, pct)
-            } else "—"
-        } ?: run { kpiVsLast = "—" }
+    // 3) Compute % vs baseline, and LOG daily savedPct once/day
+    fun dateKey(d: Date = Date()) =
+        SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(d)
+
+    var savedLoggedKey by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(currentEstimateKwh, baselineKwh, uid) {
+        val base = baselineKwh
+        val id = uid ?: return@LaunchedEffect
+        if (base == null || base <= 0.0) {
+            kpiVsLast = "—"
+            return@LaunchedEffect
+        }
+        val pct = ((currentEstimateKwh - base) / base) * 100.0
+        val sign = if (pct >= 0) "+" else ""
+        kpiVsLast = String.format(Locale.getDefault(), "%s%.0f%%", sign, pct)
+
+        // Write one record per day to metrics/savingsLog/days/{yyyyMMdd}
+        val key = dateKey()
+        if (savedLoggedKey != key) {
+            savedLoggedKey = key
+            val path = db.collection("users").document(id)
+                .collection("metrics").document("savingsLog")
+                .collection("days").document(key)
+
+            val data = mapOf(
+                "kwh" to currentEstimateKwh,
+                "baselineKwh" to base,
+                "savedPct" to pct,
+                "ts" to FieldValue.serverTimestamp()
+            )
+            path.set(data)
+        }
     }
 
     // 4) Auto-backfill baseline ONCE
@@ -279,7 +306,6 @@ fun EcoTrackScreen(
             )
         }
 
-        // Spike dialog – save baseline before jumping to Appliances
         item {
             OverusePrompt(
                 visible = showOveruse,
@@ -309,7 +335,7 @@ fun EcoTrackScreen(
             }
         }
 
-        // Rewards teaser card (Open = dark blue bg, white text)
+        // Rewards teaser (Open button: dark blue bg + white text)
         item {
             RewardsTeaserCard(
                 points = pendingPoints,
@@ -418,7 +444,7 @@ private fun KpiCard(value: String, label: String, modifier: Modifier = Modifier)
     }
 }
 
-/** Rewards CTA card — Open button is dark blue with white text */
+/** Rewards CTA card — Open button dark blue bg + white text */
 @Composable
 private fun RewardsTeaserCard(
     points: Int,
@@ -567,7 +593,7 @@ fun LineChartScreen(
                     description.isEnabled = false
                     xAxis.position = XAxis.XAxisPosition.BOTTOM
                     xAxis.setDrawLabels(false)
-                    animateY(4000)
+                    animateY(400)
                     axisLeft.axisMinimum = 0f
                     axisLeft.axisMaximum = 4f
                 }

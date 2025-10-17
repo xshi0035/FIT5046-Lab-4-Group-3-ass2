@@ -22,11 +22,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
-import com.google.firebase.Timestamp
+import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -60,16 +61,15 @@ private data class RewardAction(
 
 private enum class Cadence { Daily, Weekly }
 
-/** What we store for every claim in Firestore. */
 private data class RewardEntry(
     val taskId: String = "",
     val taskTitle: String = "",
     val points: Int = 0,
-    val timestamp: Long = 0L, // millis since epoch
+    val timestamp: Long = 0L,
     val key: String = ""
 )
 
-/* -------------------------- Our “earn points” actions ---------------------- */
+/* -------------------------- Actions to earn points ------------------------- */
 
 private val ACTIONS = listOf(
     RewardAction(
@@ -107,13 +107,11 @@ private val ACTIONS = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AchievementsScaffold(
-    // Legacy params kept for compatibility; they are ignored by the Firestore UI.
     totalPoints: Int,
     electricityPoints: Int,
     badges: List<Badge>,
     leaderboard: List<LeaderboardEntry>,
     monthly: MonthlyProgress,
-    // NAV – unchanged
     currentRoute: String = ROUTE_REWARDS,
     onTabSelected: (route: String) -> Unit = {},
     onBack: () -> Unit = {},
@@ -176,14 +174,18 @@ private fun RewardsScreenFirestore(
     val db = remember { FirebaseFirestore.getInstance() }
     val uid = auth.currentUser?.uid
 
-    // UI state
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var entries by remember { mutableStateOf<List<RewardEntry>>(emptyList()) }
-    var todayClaimed by remember { mutableStateOf<Set<String>>(emptySet()) }   // taskIds claimed today
-    var weekClaimed by remember { mutableStateOf<Set<String>>(emptySet()) }    // taskIds claimed this week
+    var todayClaimed by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var weekClaimed by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // Listen to rewards collection (always return a DisposableEffectResult)
+    // Daily / weekly flags + streak
+    var dailyCollected by remember { mutableStateOf(false) }
+    var weeklyCollected by remember { mutableStateOf(false) }
+    var weeklyStreak by remember { mutableStateOf(0) } // 0..7
+
+    /* -------- Rewards collection listener (totals + flags) -------- */
     DisposableEffect(uid) {
         if (uid == null) {
             isLoading = false
@@ -200,7 +202,6 @@ private fun RewardsScreenFirestore(
                         return@addSnapshotListener
                     }
                     val list = snap?.documents?.mapNotNull { d ->
-                        // Robust timestamp extraction: supports Long and com.google.firebase.Timestamp
                         val tsMillis: Long = when (val raw = d.get("timestamp")) {
                             is Long -> raw
                             is Timestamp -> raw.toDate().time
@@ -219,7 +220,6 @@ private fun RewardsScreenFirestore(
                     isLoading = false
                     error = null
 
-                    // compute today's and this week's claimed sets
                     val c = Calendar.getInstance()
                     val todayKey = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(c.time)
                     val weekOfYear = c.get(Calendar.WEEK_OF_YEAR)
@@ -242,12 +242,85 @@ private fun RewardsScreenFirestore(
                         }
                         .map { it.taskId }
                         .toSet()
+
+                    dailyCollected = list.any { it.key == "daily_${todayKey}" }
+                    val wkKey = SimpleDateFormat("yyyy-'W'ww", Locale.getDefault()).format(c.time)
+                    weeklyCollected = list.any { it.key == "weekly_streak_${wkKey}" }
                 }
 
         onDispose { reg.remove() }
     }
 
-    // Derived totals
+    /* -------- LIVE streak computation (savingsLog + optional dailyUsage) -------- */
+
+    fun last7Ids(from: Date = Date()): Set<String> {
+        val now = Calendar.getInstance().apply { time = from }
+        return (0..6).map {
+            val c = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -it) }
+            SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(c.time)
+        }.toSet()
+    }
+
+    fun docSavedPct(doc: Map<String, Any?>): Double? {
+        (doc["savedPct"] as? Number)?.toDouble()?.let { return it }
+        (doc["pct"] as? Number)?.toDouble()?.let { return it }
+        (doc["deltaPct"] as? Number)?.toDouble()?.let { return it }
+
+        val kwh = (doc["kwh"] as? Number)?.toDouble()
+            ?: (doc["estimate"] as? Number)?.toDouble()
+        val base = (doc["baselineKwh"] as? Number)?.toDouble()
+            ?: (doc["baseline"] as? Number)?.toDouble()
+            ?: (doc["lastEstimateKwh"] as? Number)?.toDouble()
+
+        if (kwh != null && base != null && base > 0.0) {
+            return ((kwh - base) / base) * 100.0
+        }
+        return null
+    }
+
+    fun recomputeStreak(vararg snapshots: QuerySnapshot?) {
+        val wanted = last7Ids()
+        var count = 0
+        snapshots.filterNotNull().forEach { snap ->
+            snap.documents.forEach { d ->
+                if (d.id in wanted) {
+                    val pct = docSavedPct(d.data ?: emptyMap())
+                    if (pct != null && pct <= -1.0) count += 1
+                }
+            }
+        }
+        weeklyStreak = count.coerceIn(0, 7)
+    }
+
+    var snapSavings by remember { mutableStateOf<QuerySnapshot?>(null) }
+    var snapDaily by remember { mutableStateOf<QuerySnapshot?>(null) }
+
+    // metrics/savingsLog/days/*
+    DisposableEffect(uid) {
+        if (uid == null) return@DisposableEffect onDispose { }
+        val reg = db.collection("users").document(uid)
+            .collection("metrics").document("savingsLog")
+            .collection("days")
+            .addSnapshotListener { snap, _ ->
+                snapSavings = snap
+                recomputeStreak(snapSavings, snapDaily)
+            }
+        onDispose { reg.remove() }
+    }
+
+    // (optional) dailyUsage/*
+    DisposableEffect(uid) {
+        if (uid == null) return@DisposableEffect onDispose { }
+        val reg = db.collection("users").document(uid)
+            .collection("dailyUsage")
+            .addSnapshotListener { snap, _ ->
+                snapDaily = snap
+                recomputeStreak(snapSavings, snapDaily)
+            }
+        onDispose { reg.remove() }
+    }
+
+    /* ------------------------ Derived totals for header ------------------------ */
     val calendar = remember { Calendar.getInstance() }
     val month = calendar.get(Calendar.MONTH)
     val year = calendar.get(Calendar.YEAR)
@@ -261,10 +334,9 @@ private fun RewardsScreenFirestore(
     }.toSet().size
 
     val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val monthlyGoal = 1000 // tweak if you want to pull from user profile
     val totalPoints = entries.sumOf { it.points }
 
-    // Claim handler
+    /* ----------------------------- Claim handlers ----------------------------- */
     fun claim(task: RewardAction) {
         val u = auth.currentUser?.uid
         if (u == null) {
@@ -276,7 +348,7 @@ private fun RewardsScreenFirestore(
             Cadence.Weekly -> SimpleDateFormat("yyyy-'W'ww", Locale.getDefault())
         }
         val periodKey = sdf.format(Date())
-        val docId = "${task.id}_$periodKey" // Prevent duplicate claim in the period.
+        val docId = "${task.id}_$periodKey"
 
         val data = mapOf(
             "taskId" to task.id,
@@ -308,13 +380,76 @@ private fun RewardsScreenFirestore(
             }
     }
 
-    // UI
+    fun collectDaily(points: Int = 50) {
+        val u = auth.currentUser?.uid ?: return
+        val key = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+        val doc = "daily_${key}"
+        val data = mapOf(
+            "taskId" to "daily",
+            "taskTitle" to "Daily energy saver",
+            "points" to points,
+            "timestamp" to FieldValue.serverTimestamp(),
+            "periodKey" to key
+        )
+        db.collection("users").document(u).collection("rewards").document(doc)
+            .get()
+            .addOnSuccessListener { s ->
+                if (s.exists()) {
+                    scope.launch { snackbar.showSnackbar("Already collected today.") }
+                } else {
+                    db.collection("users").document(u).collection("rewards").document(doc)
+                        .set(data)
+                        .addOnSuccessListener {
+                            scope.launch { snackbar.showSnackbar("Collected +$points points!") }
+                        }
+                        .addOnFailureListener { e ->
+                            scope.launch { snackbar.showSnackbar(e.localizedMessage ?: "Failed to collect") }
+                        }
+                }
+            }
+    }
+
+    fun collectWeekly(points: Int = 300) {
+        val u = auth.currentUser?.uid ?: return
+        if (weeklyStreak < 7) {
+            scope.launch { snackbar.showSnackbar("Keep it up! ${7 - weeklyStreak} more day(s) to go.") }
+            return
+        }
+
+        val wk = SimpleDateFormat("yyyy-'W'ww", Locale.getDefault()).format(Date())
+        val doc = "weekly_streak_${wk}"
+        val data = mapOf(
+            "taskId" to "weekly_streak",
+            "taskTitle" to "Weekly energy-saver streak",
+            "points" to points,
+            "timestamp" to FieldValue.serverTimestamp(),
+            "periodKey" to wk
+        )
+        db.collection("users").document(u).collection("rewards").document(doc)
+            .get()
+            .addOnSuccessListener { s ->
+                if (s.exists()) {
+                    scope.launch { snackbar.showSnackbar("Weekly reward already collected.") }
+                } else {
+                    db.collection("users").document(u).collection("rewards").document(doc)
+                        .set(data)
+                        .addOnSuccessListener {
+                            scope.launch { snackbar.showSnackbar("Nice! +$points points for your 7-day streak!") }
+                        }
+                        .addOnFailureListener { e ->
+                            scope.launch { snackbar.showSnackbar(e.localizedMessage ?: "Failed to collect") }
+                        }
+                }
+            }
+    }
+
+    /* -------------------------------- UI ---------------------------------- */
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        // EcoPoints tracker (header)
+        // Header
         item {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(16.dp)) {
@@ -357,7 +492,98 @@ private fun RewardsScreenFirestore(
             }
         }
 
-        // Earn more points (actions)
+        // Daily reward
+        item {
+            SectionCard(title = "Daily Reward") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = CircleShape,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Bolt, contentDescription = null)
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Follow today’s tips", fontWeight = FontWeight.Medium)
+                        Text(
+                            "Complete any recommended action and collect your daily reward.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Button(
+                        enabled = !isLoading && !dailyCollected,
+                        onClick = { collectDaily(50) },
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text(if (dailyCollected) "Collected" else "Collect +50") }
+                }
+                Spacer(Modifier.height(4.dp))
+            }
+        }
+
+        // Weekly streak
+        item {
+            SectionCard(title = "Weekly Energy-Saver") {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Saved day streak", fontWeight = FontWeight.Medium)
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(999.dp)
+                        ) {
+                            Text(
+                                "${weeklyStreak}/7 days",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    LinearProgressIndicator(
+                        progress = { (weeklyStreak / 7f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(999.dp)),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Save ≥1% vs last estimate on 7 days to collect.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            enabled = (weeklyStreak >= 7) && !isLoading && !weeklyCollected,
+                            onClick = { collectWeekly(300) },
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(if (weeklyCollected) "Collected" else "Collect +300") }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+            }
+        }
+
+        // Earn more points (unchanged)
         item {
             SectionCard(
                 title = "Earn More Points",
