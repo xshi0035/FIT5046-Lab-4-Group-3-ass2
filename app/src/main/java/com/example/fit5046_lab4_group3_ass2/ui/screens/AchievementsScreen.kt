@@ -28,6 +28,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.QuerySnapshot
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -185,6 +186,25 @@ private fun RewardsScreenFirestore(
     var weeklyCollected by remember { mutableStateOf(false) }
     var weeklyStreak by remember { mutableStateOf(0) } // 0..7
 
+    /* -------- Helpers for date keys & re-deriving flags -------- */
+    fun dayKeyOf(date: Date = Date()): String =
+        SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(date)
+
+    fun weekKeyOf(date: Date = Date()): String =
+        SimpleDateFormat("yyyy-'W'ww", Locale.getDefault()).format(date)
+
+    fun recomputeDailyFlagsFor(key: String, list: List<RewardEntry>) {
+        todayClaimed = list
+            .filter {
+                val k = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+                    .format(Date(it.timestamp))
+                k == key
+            }
+            .map { it.taskId }
+            .toSet()
+        dailyCollected = list.any { it.key == "daily_${key}" }
+    }
+
     /* -------- Rewards collection listener (totals + flags) -------- */
     DisposableEffect(uid) {
         if (uid == null) {
@@ -221,19 +241,14 @@ private fun RewardsScreenFirestore(
                     error = null
 
                     val c = Calendar.getInstance()
-                    val todayKey = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(c.time)
+                    val todayKey = dayKeyOf(c.time)
                     val weekOfYear = c.get(Calendar.WEEK_OF_YEAR)
                     val year = c.get(Calendar.YEAR)
 
-                    todayClaimed = list
-                        .filter {
-                            val key = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-                                .format(Date(it.timestamp))
-                            key == todayKey
-                        }
-                        .map { it.taskId }
-                        .toSet()
+                    // daily reset based on todays key
+                    recomputeDailyFlagsFor(todayKey, list)
 
+                    // weekly claimed set (for action cards)
                     weekClaimed = list
                         .filter {
                             val cal = Calendar.getInstance().apply { time = Date(it.timestamp) }
@@ -243,12 +258,31 @@ private fun RewardsScreenFirestore(
                         .map { it.taskId }
                         .toSet()
 
-                    dailyCollected = list.any { it.key == "daily_${todayKey}" }
-                    val wkKey = SimpleDateFormat("yyyy-'W'ww", Locale.getDefault()).format(c.time)
-                    weeklyCollected = list.any { it.key == "weekly_streak_${wkKey}" }
+                    // weekly collected (streak reward)
+                    weeklyCollected = list.any { it.key == "weekly_streak_${weekKeyOf(c.time)}" }
                 }
 
         onDispose { reg.remove() }
+    }
+
+    /* -------- LIVE midnight watcher: auto-refresh daily flags -------- */
+    var lastSeenDayKey by remember { mutableStateOf(dayKeyOf()) }
+    LaunchedEffect(entries) {
+        // whenever entries change, sync flags for the current day
+        val k = dayKeyOf()
+        lastSeenDayKey = k
+        recomputeDailyFlagsFor(k, entries)
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000) // check once a minute
+            val currentKey = dayKeyOf()
+            if (currentKey != lastSeenDayKey) {
+                lastSeenDayKey = currentKey
+                // New day → recompute against same entries; all daily items refresh
+                recomputeDailyFlagsFor(currentKey, entries)
+            }
+        }
     }
 
     /* -------- LIVE streak computation (savingsLog + optional dailyUsage) -------- */
@@ -382,7 +416,7 @@ private fun RewardsScreenFirestore(
 
     fun collectDaily(points: Int = 50) {
         val u = auth.currentUser?.uid ?: return
-        val key = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+        val key = dayKeyOf()
         val doc = "daily_${key}"
         val data = mapOf(
             "taskId" to "daily",
@@ -416,7 +450,7 @@ private fun RewardsScreenFirestore(
             return
         }
 
-        val wk = SimpleDateFormat("yyyy-'W'ww", Locale.getDefault()).format(Date())
+        val wk = weekKeyOf()
         val doc = "weekly_streak_${wk}"
         val data = mapOf(
             "taskId" to "weekly_streak",
