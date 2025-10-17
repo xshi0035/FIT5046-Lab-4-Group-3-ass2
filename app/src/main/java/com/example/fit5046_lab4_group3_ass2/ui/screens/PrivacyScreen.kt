@@ -293,7 +293,6 @@ fun PrivacyScreen(
                             "Access your personal data",
                             "Correct inaccurate information",
                             "Delete your account and data",
-                            "Export your data in a portable format",
                             "Withdraw consent at any time"
                         )
                         
@@ -325,29 +324,14 @@ fun PrivacyScreen(
 
             // Action Buttons
             item {
-                Column(
+                OutlinedButton(
+                    onClick = { /* Handle data deletion */ },
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Button(
-                        onClick = { /* Handle data export */ },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Filled.Download, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Export My Data")
-                    }
-                    
-                    OutlinedButton(
-                        onClick = { /* Handle data deletion */ },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Filled.Delete, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete My Account")
-                    }
+                    Icon(Icons.Filled.Delete, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Delete My Account")
                 }
             }
 
