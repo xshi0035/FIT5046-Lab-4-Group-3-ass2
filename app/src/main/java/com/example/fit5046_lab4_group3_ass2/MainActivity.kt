@@ -19,6 +19,7 @@ import com.example.fit5046_lab4_group3_ass2.data.ProfileRepo
 import com.example.fit5046_lab4_group3_ass2.data.UserPrefs
 import com.example.fit5046_lab4_group3_ass2.ui.screens.*
 import com.example.fit5046_lab4_group3_ass2.ui.theme.FIT5046Lab4Group3ass2Theme
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -42,7 +43,6 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
 
-    /** One true way to move between tabs (Home/Appliances/EcoTrack/Rewards/Profile). */
     fun navigateTab(route: String) {
         nav.navigate(route) {
             launchSingleTop = true
@@ -50,8 +50,6 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             popUpTo(nav.graph.findStartDestination().id) { saveState = true }
         }
     }
-
-    fun goHome() = navigateTab(ROUTE_HOME)
     fun onTab(route: String) = navigateTab(route)
 
     NavHost(
@@ -65,6 +63,23 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             LoginScaffold(
                 onLoginSuccess = {
                     scope.launch {
+                        // ✅ Robust first-sign-in check via Firebase metadata
+                        val auth = FirebaseAuth.getInstance()
+                        val meta = auth.currentUser?.metadata
+                        val isFirstSignIn = meta != null &&
+                                meta.creationTimestamp == meta.lastSignInTimestamp
+
+                        if (isFirstSignIn) {
+                            // Treat as first time regardless of any stale local flag
+                            UserPrefs.setOnboarded(ctx, false)
+                            nav.navigate("home_start") {
+                                popUpTo("login") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                            return@launch
+                        }
+
+                        // Otherwise, use local onboarding flag
                         val onboarded = UserPrefs.isOnboarded(ctx)
                         if (!onboarded) {
                             nav.navigate("home_start") {
@@ -72,6 +87,7 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                                 launchSingleTop = true
                             }
                         } else {
+                            // Already onboarded -> check if profile exists
                             ProfileRepo.exists { res ->
                                 val hasProfile = res.getOrElse { false }
                                 nav.navigate(if (hasProfile) ROUTE_HOME else "profile_setup") {
@@ -97,12 +113,13 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             )
         }
 
-        // Starting page (no bottom bar)
+        // First-time "Get Started" screen (no bottom bar)
         composable("home_start") {
             HomeScaffold(
                 onNotificationsClick = { /* optional */ },
                 onGetStartedClick = {
                     scope.launch {
+                        // Mark onboarded and proceed to profile setup once user chooses to start
                         UserPrefs.setOnboarded(ctx, true)
                         nav.navigate("profile_setup") {
                             popUpTo("home_start") { inclusive = true }
@@ -113,7 +130,7 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             )
         }
 
-        // Profile setup (no bottom bar). On save -> Home tab.
+        // Profile setup (no bottom bar). Save -> Home; Step-1 back -> Profile.
         composable("profile_setup") {
             ProfileScaffold(
                 onSaved = {
@@ -121,7 +138,8 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                         popUpTo("profile_setup") { inclusive = true }
                         launchSingleTop = true
                     }
-                }
+                },
+                onBack = { nav.popBackStack() } // enables Step-1 back to Profile
             )
         }
 
@@ -131,28 +149,24 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             HomePageScaffold(
                 currentRoute = ROUTE_HOME,
                 onTabSelected = ::onTab,
-
-                // ✅ QUICK ACTIONS now use the same tab navigation helper
                 onAddAppliance = { onTab(ROUTE_APPLIANCES) },
                 onOpenEcoTrack = { onTab(ROUTE_ECOTRACK) },
-                onViewTips = { nav.navigate("tips") },        // non-tab page
+                onViewTips = { nav.navigate("tips") },  // non-tab page
                 onViewRewards = { onTab(ROUTE_REWARDS) },
                 viewModel = ecoTrackScreenViewModel
             )
         }
 
-        // Appliances list
         composable(ROUTE_APPLIANCES) {
             ElectricityScaffold(
                 currentRoute = ROUTE_APPLIANCES,
                 onTabSelected = ::onTab,
-                onBack = { nav.popBackStack() },              // ✅ back to Home
+                onBack = { nav.popBackStack() },
                 onAddAppliance = { nav.navigate("appliance_add") },
                 onEditAppliance = { id -> nav.navigate("appliance_add?applianceId=$id") }
             )
         }
 
-        // Add OR Edit appliance (optional id param)
         composable(
             route = "appliance_add?applianceId={applianceId}",
             arguments = listOf(
@@ -172,7 +186,7 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             EcoTrackScaffold(
                 currentRoute = ROUTE_ECOTRACK,
                 onTabSelected = ::onTab,
-                onBack = { nav.popBackStack() },              // ✅
+                onBack = { nav.popBackStack() },
                 viewModel = ecoTrackScreenViewModel,
                 onGoToElectricity = { onTab(ROUTE_APPLIANCES) }
             )
@@ -201,25 +215,7 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                 ),
                 currentRoute = ROUTE_REWARDS,
                 onTabSelected = ::onTab,
-                onBack = { nav.popBackStack() }               // ✅
-            )
-        }
-
-        composable(ROUTE_PROFILE) {
-            ProfileRoute(
-                onBack = { nav.popBackStack() },              // ✅
-                onNotifications = { /* optional */ },
-                onEditProfile = { nav.navigate("profile_setup") },
-                onTabSelected = ::onTab
-            )
-        }
-
-        /* ---------------------- Non-tab page WITH bar ------------------- */
-        composable("tips") {
-            TipsScaffold(
-                onBack = { nav.popBackStack() },              // ✅
-                onNotifications = { /* optional */ },
-                onTabSelected = ::onTab
+                onBack = { nav.popBackStack() }
             )
         }
 
@@ -229,12 +225,21 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                 onNotifications = { /* optional */ },
                 onEditProfile = { nav.navigate("profile_setup") },
                 onLogout = {
-                    // After signOut (done in ProfileRoute), go to login and clear stack
+                    // After signOut, clear stack and go to login
                     nav.navigate("login") {
                         popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
                         launchSingleTop = true
                     }
                 },
+                onTabSelected = ::onTab
+            )
+        }
+
+        /* ---------------------- Non-tab page WITH bar ------------------- */
+        composable("tips") {
+            TipsScaffold(
+                onBack = { nav.popBackStack() },
+                onNotifications = { /* optional */ },
                 onTabSelected = ::onTab
             )
         }
