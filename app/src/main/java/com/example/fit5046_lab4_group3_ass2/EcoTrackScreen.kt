@@ -411,7 +411,7 @@ private fun PriceHeaderCard(rrpAudPerMwh: Float, severity: PriceSeverity) {
     }
 }
 
-private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 @Composable
 private fun PriceAlertBanner(rrpAudPerMwh: Float, severity: PriceSeverity) {
@@ -485,8 +485,8 @@ private fun UsageAlertBanner(current_usage: Float, usageSeverity: UsageSeverity)
     }
 }
 
-/** tiny helper to return 4 values */
-data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+///** tiny helper to return 4 values */
+//data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 @Composable
 private fun KpiCard(value: String, label: String, modifier: Modifier = Modifier) {

@@ -136,7 +136,8 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                 onAddAppliance = { onTab(ROUTE_APPLIANCES) },
                 onOpenEcoTrack = { onTab(ROUTE_ECOTRACK) },
                 onViewTips = { nav.navigate("tips") },        // non-tab page
-                onViewRewards = { onTab(ROUTE_REWARDS) }
+                onViewRewards = { onTab(ROUTE_REWARDS) },
+                viewModel = ecoTrackScreenViewModel
             )
         }
 
