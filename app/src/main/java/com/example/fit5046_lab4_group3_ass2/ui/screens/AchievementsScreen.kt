@@ -67,7 +67,8 @@ private data class RewardEntry(
     val taskTitle: String = "",
     val points: Int = 0,
     val timestamp: Long = 0L,
-    val key: String = ""
+    val key: String = "",
+    val periodKey: String = ""            // <-- for same-day/week detection (stable in first snapshot)
 )
 
 /* -------------------------- Actions to earn points ------------------------- */
@@ -186,10 +187,10 @@ private fun RewardsScreenFirestore(
     var weeklyCollected by remember { mutableStateOf(false) }
     var weeklyStreak by remember { mutableStateOf(0) } // 0..7
 
-    // NEW: remember when we last reset the weekly cycle (yyyyMMdd)
+    // Track last weekly reset day (yyyyMMdd)
     var streakResetDayKey by remember { mutableStateOf<String?>(null) }
 
-    /* -------- Helpers for date keys & re-deriving flags -------- */
+    /* -------- Helpers for date keys -------- */
     fun dayKeyOf(date: Date = Date()): String =
         SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(date)
 
@@ -197,18 +198,16 @@ private fun RewardsScreenFirestore(
         SimpleDateFormat("yyyy-'W'ww", Locale.getDefault()).format(date)
 
     fun recomputeDailyFlagsFor(key: String, list: List<RewardEntry>) {
+        // Claimed tasks for *today* by periodKey (timestamp can be null early)
         todayClaimed = list
-            .filter {
-                val k = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-                    .format(Date(it.timestamp))
-                k == key
-            }
+            .filter { it.periodKey == key }
             .map { it.taskId }
             .toSet()
+        // Daily collect doc id pattern
         dailyCollected = list.any { it.key == "daily_${key}" }
     }
 
-    /* -------- Rewards collection listener (totals + flags) -------- */
+    /* -------- Rewards collection listener -------- */
     DisposableEffect(uid) {
         if (uid == null) {
             isLoading = false
@@ -235,7 +234,8 @@ private fun RewardsScreenFirestore(
                             taskTitle = d.getString("taskTitle") ?: "",
                             points = (d.getLong("points") ?: 0L).toInt(),
                             timestamp = tsMillis,
-                            key = d.id
+                            key = d.id,
+                            periodKey = d.getString("periodKey") ?: ""     // <-- read periodKey
                         )
                     } ?: emptyList()
 
@@ -244,41 +244,27 @@ private fun RewardsScreenFirestore(
                     error = null
 
                     val c = Calendar.getInstance()
-                    val todayKey = dayKeyOf(c.time)
-                    val weekOfYear = c.get(Calendar.WEEK_OF_YEAR)
-                    val year = c.get(Calendar.YEAR)
+                    val currentDayKey = dayKeyOf(c.time)
+                    val currentWeekKey = weekKeyOf(c.time)
 
-                    // daily reset based on todays key
-                    recomputeDailyFlagsFor(todayKey, list)
+                    // Daily flags
+                    recomputeDailyFlagsFor(currentDayKey, list)
 
-                    // weekly claimed set (for action cards)
+                    // Weekly claimed set for actions by periodKey
                     weekClaimed = list
-                        .filter {
-                            val cal = Calendar.getInstance().apply { time = Date(it.timestamp) }
-                            cal.get(Calendar.WEEK_OF_YEAR) == weekOfYear &&
-                                    cal.get(Calendar.YEAR) == year
-                        }
+                        .filter { it.periodKey == currentWeekKey }
                         .map { it.taskId }
                         .toSet()
 
-                    // ——— NEW: track latest reset, and gate the "Collected" flag with it
-                    val currentWeekKey = weekKeyOf(c.time)
+                    // Weekly reward collected? (doc id is deterministic)
+                    weeklyCollected = list.any { it.key == "weekly_streak_${currentWeekKey}" }
 
-                    val latestWeekly = list
-                        .filter { it.taskId == "weekly_streak" && it.key == "weekly_streak_${currentWeekKey}" }
+                    // Latest reset marker (yyyyMMdd in key)
+                    streakResetDayKey = list
+                        .filter { it.key.startsWith("weekly_reset_") }
                         .maxByOrNull { it.timestamp }
-
-                    val latestReset = list
-                        .filter { it.taskId == "weekly_reset" && it.key.startsWith("weekly_reset_") }
-                        .maxByOrNull { it.timestamp }
-
-                    streakResetDayKey = latestReset?.key?.removePrefix("weekly_reset_")
-
-                    weeklyCollected = when {
-                        latestWeekly == null -> false
-                        latestReset == null -> true
-                        else -> latestWeekly.timestamp > latestReset.timestamp
-                    }
+                        ?.key
+                        ?.removePrefix("weekly_reset_")
                 }
 
         onDispose { reg.remove() }
@@ -293,7 +279,7 @@ private fun RewardsScreenFirestore(
     }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(60_000) // check once a minute
+            delay(60_000)
             val currentKey = dayKeyOf()
             if (currentKey != lastSeenDayKey) {
                 lastSeenDayKey = currentKey
@@ -302,7 +288,7 @@ private fun RewardsScreenFirestore(
         }
     }
 
-    /* -------- LIVE streak computation (savingsLog + optional dailyUsage) -------- */
+    /* -------- Streak computation (savingsLog + optional dailyUsage) -------- */
 
     fun last7Ids(from: Date = Date()): List<String> {
         val now = Calendar.getInstance().apply { time = from }
@@ -323,17 +309,13 @@ private fun RewardsScreenFirestore(
             ?: (doc["baseline"] as? Number)?.toDouble()
             ?: (doc["lastEstimateKwh"] as? Number)?.toDouble()
 
-        if (kwh != null && base != null && base > 0.0) {
-            return ((kwh - base) / base) * 100.0
-        }
-        return null
+        return if (kwh != null && base != null && base > 0.0) ((kwh - base) / base) * 100.0 else null
     }
 
     fun recomputeStreak(vararg snapshots: QuerySnapshot?) {
-        // Build the last 7 calendar days, then ignore any day before the last reset
         val recentIds = last7Ids()
         val effectiveIds = streakResetDayKey?.let { reset ->
-            recentIds.filter { it >= reset }  // yyyyMMdd is lexicographically sortable
+            recentIds.filter { it >= reset }
         } ?: recentIds
 
         var count = 0
@@ -414,6 +396,7 @@ private fun RewardsScreenFirestore(
             "timestamp" to FieldValue.serverTimestamp(),
             "periodKey" to periodKey
         )
+
         db.collection("users").document(u).collection("rewards").document(docId)
             .get()
             .addOnSuccessListener { snap ->
@@ -425,6 +408,11 @@ private fun RewardsScreenFirestore(
                     db.collection("users").document(u).collection("rewards").document(docId)
                         .set(data)
                         .addOnSuccessListener {
+                            // Optimistic UI: disable button immediately
+                            when (task.cadence) {
+                                Cadence.Daily -> todayClaimed = todayClaimed + task.id
+                                Cadence.Weekly -> weekClaimed = weekClaimed + task.id
+                            }
                             scope.launch { snackbar.showSnackbar("You earned +${task.points} EcoPoints!") }
                         }
                         .addOnFailureListener { e ->
@@ -457,6 +445,7 @@ private fun RewardsScreenFirestore(
                     db.collection("users").document(u).collection("rewards").document(doc)
                         .set(data)
                         .addOnSuccessListener {
+                            dailyCollected = true
                             scope.launch { snackbar.showSnackbar("Collected +$points points!") }
                         }
                         .addOnFailureListener { e ->
@@ -491,7 +480,7 @@ private fun RewardsScreenFirestore(
                     db.collection("users").document(u).collection("rewards").document(doc)
                         .set(data)
                         .addOnSuccessListener {
-                            // —— NEW: write a reset marker + reset UI immediately
+                            // Write a reset marker + reset UI immediately
                             val todayKey = dayKeyOf()
                             val resetDocId = "weekly_reset_${todayKey}"
                             val resetData = mapOf(
@@ -505,13 +494,10 @@ private fun RewardsScreenFirestore(
                                 .collection("rewards").document(resetDocId)
                                 .set(resetData)
                                 .addOnCompleteListener {
-                                    // UI reset right away
                                     streakResetDayKey = todayKey
                                     weeklyStreak = 0
-                                    weeklyCollected = false
-                                    scope.launch {
-                                        snackbar.showSnackbar("Nice! +$points points. Streak restarted.")
-                                    }
+                                    weeklyCollected = true
+                                    scope.launch { snackbar.showSnackbar("Nice! +$points points. Streak restarted.") }
                                 }
                         }
                         .addOnFailureListener { e ->
@@ -663,10 +649,7 @@ private fun RewardsScreenFirestore(
 
         // Earn more points
         item {
-            SectionCard(
-                title = "Earn More Points",
-                trailing = { }
-            ) {
+            SectionCard(title = "Earn More Points", trailing = { }) {
                 ACTIONS.forEach { action ->
                     val alreadyClaimed = when (action.cadence) {
                         Cadence.Daily -> todayClaimed.contains(action.id)
@@ -707,10 +690,7 @@ private fun RewardsScreenFirestore(
 
         // Monthly Progress
         item {
-            SectionCard(
-                title = "Monthly Progress",
-                trailing = {}
-            ) {
+            SectionCard(title = "Monthly Progress", trailing = {}) {
                 InfoRow(
                     "Points This Month",
                     String.format(Locale.getDefault(), "%,d pts", pointsThisMonth)
