@@ -6,8 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -43,6 +42,28 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
 
+    // ---- Global auth listener: if user becomes null (sign out / delete), jump to login + clear stack
+    var isLoggedIn by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser != null) }
+
+    DisposableEffect(Unit) {
+        val auth = FirebaseAuth.getInstance()
+        val listener = FirebaseAuth.AuthStateListener { fa ->
+            isLoggedIn = fa.currentUser != null
+        }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
+
+    LaunchedEffect(isLoggedIn) {
+        if (!isLoggedIn) {
+            nav.navigate("login") {
+                popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
+    // ----------------------------------------------------------------------
+
     fun navigateTab(route: String) {
         nav.navigate(route) {
             launchSingleTop = true
@@ -63,14 +84,13 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             LoginScaffold(
                 onLoginSuccess = {
                     scope.launch {
-                        // ✅ Robust first-sign-in check via Firebase metadata
                         val auth = FirebaseAuth.getInstance()
                         val meta = auth.currentUser?.metadata
                         val isFirstSignIn = meta != null &&
                                 meta.creationTimestamp == meta.lastSignInTimestamp
 
                         if (isFirstSignIn) {
-                            // Treat as first time regardless of any stale local flag
+                            // First ever sign-in -> show Get Started
                             UserPrefs.setOnboarded(ctx, false)
                             nav.navigate("home_start") {
                                 popUpTo("login") { inclusive = true }
@@ -79,7 +99,7 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                             return@launch
                         }
 
-                        // Otherwise, use local onboarding flag
+                        // Otherwise check local onboarding flag
                         val onboarded = UserPrefs.isOnboarded(ctx)
                         if (!onboarded) {
                             nav.navigate("home_start") {
@@ -87,7 +107,7 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                                 launchSingleTop = true
                             }
                         } else {
-                            // Already onboarded -> check if profile exists
+                            // Already onboarded -> ensure profile exists
                             ProfileRepo.exists { res ->
                                 val hasProfile = res.getOrElse { false }
                                 nav.navigate(if (hasProfile) ROUTE_HOME else "profile_setup") {
@@ -113,13 +133,13 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             )
         }
 
-        // First-time "Get Started" screen (no bottom bar)
+        // First-time "Get Started" (no bottom bar)
         composable("home_start") {
             HomeScaffold(
                 onNotificationsClick = { /* optional */ },
                 onGetStartedClick = {
                     scope.launch {
-                        // Mark onboarded and proceed to profile setup once user chooses to start
+                        // Mark onboarded, then proceed to profile setup
                         UserPrefs.setOnboarded(ctx, true)
                         nav.navigate("profile_setup") {
                             popUpTo("home_start") { inclusive = true }
@@ -130,7 +150,7 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             )
         }
 
-        // Profile setup (no bottom bar). Save -> Home; Step-1 back -> Profile.
+        // Profile setup (no bottom bar). Save -> Home; Back -> previous.
         composable("profile_setup") {
             ProfileScaffold(
                 onSaved = {
@@ -139,7 +159,7 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                         launchSingleTop = true
                     }
                 },
-                onBack = { nav.popBackStack() } // enables Step-1 back to Profile
+                onBack = { nav.popBackStack() }
             )
         }
 
@@ -225,7 +245,7 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
                 onNotifications = { /* optional */ },
                 onEditProfile = { nav.navigate("profile_setup") },
                 onLogout = {
-                    // After signOut, clear stack and go to login
+                    // ProfileRoute should call FirebaseAuth.getInstance().signOut()
                     nav.navigate("login") {
                         popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
                         launchSingleTop = true
@@ -235,12 +255,27 @@ private fun AppNav(ecoTrackScreenViewModel: EcoTrackScreenViewModel) {
             )
         }
 
-        /* ---------------------- Non-tab page WITH bar ------------------- */
+        /* ---------------------- Non-tab pages WITH bar ------------------- */
         composable("tips") {
             TipsScaffold(
                 onBack = { nav.popBackStack() },
                 onNotifications = { /* optional */ },
                 onTabSelected = ::onTab
+            )
+        }
+
+        // Privacy
+        composable("privacy") {
+            PrivacyScreen(
+                onBack = { nav.popBackStack() },
+                onNotifications = { /* optional */ },
+                onAccountDeleted = {
+                    // This will also be triggered by the global auth listener; keeping it is harmless.
+                    nav.navigate("login") {
+                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
     }
